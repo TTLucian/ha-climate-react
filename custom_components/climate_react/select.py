@@ -8,6 +8,7 @@ from homeassistant.components.select import SelectEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import entity_registry
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.event import async_track_state_change_event
 
@@ -127,12 +128,12 @@ async def async_setup_entry(
                 "swing_horizontal_high_humidity",
             ],
         }
-        entity_registry = hass.helpers.entity_registry.async_get(hass)
+        ent_registry = entity_registry.async_get(hass)
         for attr, entity_suffixes in supported_attrs.items():
             if not isinstance(state.attributes.get(attr), list):
                 # Capability no longer supported; remove associated entities
                 for suffix in entity_suffixes:
-                    entity_id = entity_registry.async_get_entity_id(
+                    entity_id = ent_registry.async_get_entity_id(
                         "select", DOMAIN, f"{entry.entry_id}_{suffix}"
                     )
                     if entity_id:
@@ -141,7 +142,7 @@ async def async_setup_entry(
                             entity_id,
                             attr,
                         )
-                        entity_registry.async_remove(entity_id)
+                        ent_registry.async_remove(entity_id)
                         created_ids.discard(f"{entry.entry_id}_{suffix}")
 
     climate_state = hass.states.get(controller.climate_entity)
@@ -171,6 +172,7 @@ class ClimateReactBaseSelect(SelectEntity):
 
     _attr_has_entity_name = True
     _allowed_options: list[str] | None = None  # Optional filter for allowed options
+    _attr_options: list[str] = []  # Initialize with empty list
 
     def __init__(self, controller: ClimateReactController, entry: ConfigEntry) -> None:
         """Initialize the select entity."""
@@ -183,6 +185,11 @@ class ClimateReactBaseSelect(SelectEntity):
             "manufacturer": "TTLucian",
             "model": "Climate Automation Controller",
         }
+
+    @property
+    def options(self) -> list[str]:
+        """Return the list of available options."""
+        return getattr(self, "_attr_options", [])
 
     async def async_added_to_hass(self) -> None:
         """Handle entity addition."""
