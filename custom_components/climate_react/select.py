@@ -43,7 +43,7 @@ async def async_setup_entry(
 ) -> None:
     """Set up Climate React select entities from a config entry."""
     controller: ClimateReactController = hass.data[DOMAIN][entry.entry_id][DATA_COORDINATOR]
-    created_ids: set[str] = set()
+    ent_registry = entity_registry.async_get(hass)
 
     def _build_candidates(state) -> list[SelectEntity]:
         """Construct all select entities supported by current state."""
@@ -102,11 +102,8 @@ async def async_setup_entry(
         if not state or state.state in (STATE_UNAVAILABLE, STATE_UNKNOWN):
             return
         candidates = _build_candidates(state)
-        to_add = [entity for entity in candidates if getattr(entity, "unique_id", None) not in created_ids]
+        to_add = [entity for entity in candidates if not ent_registry.async_get_entity_id("select", DOMAIN, getattr(entity, "unique_id", ""))]
         if to_add:
-            created_ids.update(
-                uid for uid in (getattr(entity, "unique_id", "") for entity in to_add) if uid
-            )
             _LOGGER.info(
                 "Adding %d new select entities for climate %s (capabilities: hvac_modes=%s, fan_modes=%s, swing_modes=%s, swing_horizontal_modes=%s)",
                 len(to_add),
@@ -128,7 +125,6 @@ async def async_setup_entry(
                 "swing_horizontal_high_humidity",
             ],
         }
-        ent_registry = entity_registry.async_get(hass)
         for attr, entity_suffixes in supported_attrs.items():
             if not isinstance(state.attributes.get(attr), list):
                 # Capability no longer supported; remove associated entities
@@ -143,7 +139,6 @@ async def async_setup_entry(
                             attr,
                         )
                         ent_registry.async_remove(entity_id)
-                        created_ids.discard(f"{entry.entry_id}_{suffix}")
 
     climate_state = hass.states.get(controller.climate_entity)
 
