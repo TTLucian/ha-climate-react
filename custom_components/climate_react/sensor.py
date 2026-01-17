@@ -58,7 +58,6 @@ class ClimateReactBaseSensor(SensorEntity):
             "name": controller.get_device_name(),
             "manufacturer": "TTLucian",
             "model": "Climate Automation Controller",
-            "hw_version": "0.1.0",
         }
 
     @property
