@@ -376,6 +376,9 @@ class ClimateReactOptionsFlow(config_entries.OptionsFlow):
                     data=new_data,
                 )
                 return self.async_create_entry(title="", data={})
+            
+            # Re-show form with errors, preserving user input
+            self.data.update(user_input)
 
         use_humidity = self.data.get(CONF_USE_HUMIDITY, DEFAULT_USE_HUMIDITY)
         
@@ -394,18 +397,18 @@ class ClimateReactOptionsFlow(config_entries.OptionsFlow):
             return self.async_create_entry(title="", data={})
 
         schema_dict = {
-            vol.Optional(CONF_USE_EXTERNAL_HUMIDITY_SENSOR, default=self.config_entry.data.get(CONF_USE_EXTERNAL_HUMIDITY_SENSOR, DEFAULT_USE_EXTERNAL_HUMIDITY_SENSOR)): selector.BooleanSelector(),
+            vol.Optional(CONF_USE_EXTERNAL_HUMIDITY_SENSOR, default=self.data.get(CONF_USE_EXTERNAL_HUMIDITY_SENSOR, self.config_entry.data.get(CONF_USE_EXTERNAL_HUMIDITY_SENSOR, DEFAULT_USE_EXTERNAL_HUMIDITY_SENSOR))): selector.BooleanSelector(),
         }
         
         # Show humidity sensor if using external
-        use_external_humidity = self.data.get(CONF_USE_EXTERNAL_HUMIDITY_SENSOR, DEFAULT_USE_EXTERNAL_HUMIDITY_SENSOR)
+        use_external_humidity = self.data.get(CONF_USE_EXTERNAL_HUMIDITY_SENSOR, self.config_entry.data.get(CONF_USE_EXTERNAL_HUMIDITY_SENSOR, DEFAULT_USE_EXTERNAL_HUMIDITY_SENSOR))
         if use_external_humidity:
-            schema_dict[vol.Required(CONF_HUMIDITY_SENSOR, default=self.config_entry.data.get(CONF_HUMIDITY_SENSOR))] = selector.EntitySelector(
+            schema_dict[vol.Required(CONF_HUMIDITY_SENSOR, default=self.data.get(CONF_HUMIDITY_SENSOR, self.config_entry.data.get(CONF_HUMIDITY_SENSOR)))] = selector.EntitySelector(
                 selector.EntitySelectorConfig(domain="sensor", device_class="humidity")
             )
         
         # Always show humidifier option if humidity enabled
-        schema_dict[vol.Optional(CONF_HUMIDIFIER_ENTITY, default=self.config_entry.data.get(CONF_HUMIDIFIER_ENTITY))] = selector.EntitySelector(
+        schema_dict[vol.Optional(CONF_HUMIDIFIER_ENTITY, default=self.data.get(CONF_HUMIDIFIER_ENTITY, self.config_entry.data.get(CONF_HUMIDIFIER_ENTITY)))] = selector.EntitySelector(
             selector.EntitySelectorConfig(domain="humidifier")
         )
 
