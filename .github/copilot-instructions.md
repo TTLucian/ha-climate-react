@@ -236,8 +236,8 @@ https://my.home-assistant.io/redirect/config_flow_start?domain=climate_react
 
 ## Reference Files
 
-- **Integration README**: [../README.md](../README.md) - Detailed feature docs
-- **Integration Component README**: [../custom_components/climate_react/README.md](../custom_components/climate_react/README.md) - Component documentation
+- **Integration README**: `README.md` (repository root) - Detailed feature docs
+- **Integration Component README**: `custom_components/climate_react/README.md` - Component documentation
 - **HA Integration Docs**: https://developers.home-assistant.io/docs/creating_integration_manifest
 - **Config Flow Guide**: https://developers.home-assistant.io/docs/config_entries_config_flow_handler
 
@@ -411,7 +411,7 @@ async def async_select_option(self, option: str) -> None:
 
 ## Reference Files
 
-- **Development Guidelines**: [copilot-instructions.md](copilot-instructions.md) - Complete file-by-file specifications
+- **Development Guidelines**: `.github/copilot-instructions.md` - Complete file-by-file specifications
 - **HA Integration Docs**: https://developers.home-assistant.io/docs/creating_integration_manifest
 - **Config Flow Guide**: https://developers.home-assistant.io/docs/config_entries_config_flow_handler
 
