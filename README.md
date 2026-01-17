@@ -1,7 +1,7 @@
 # Climate React - Home Assistant Custom Integration
 
-[![GitHub release](https://img.shields.io/github/release/ttlucian/ha-climate-react.svg)](https://github.com/ttlucian/ha-climate-react/releases)
-[![License](https://img.shields.io/github/license/ttlucian/ha-climate-react.svg)](LICENSE)
+[![GitHub release](https://img.shields.io/github/release/TTLucian/ha-climate-react.svg)](https://github.com/TTLucian/ha-climate-react/releases)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![HACS](https://img.shields.io/badge/HACS-Custom-orange)](https://github.com/hacs/integration)
 [![Install with HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=TTLucian&repository=ha-climate-react&category=integration)
 [![Add Integration](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start?domain=climate_react)
