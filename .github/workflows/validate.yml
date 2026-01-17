@@ -24,7 +24,7 @@ jobs:
 
       - name: Lint with pylint
         run: |
-          pylint custom_components/solar_ac_controller || true
+          pylint custom_components/climate-react || true
 
       - name: Format check with black
         run: |
