@@ -1,7 +1,7 @@
 {
   "domain": "climate_react",
   "name": "Climate React",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "documentation": "https://github.com/TTLucian/ha-climate-react",
   "issue_tracker": "https://github.com/TTLucian/ha-climate-react/issues",
   "requirements": [],
