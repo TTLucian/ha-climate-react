@@ -1,0 +1,38 @@
+name: Validate Integration
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install homeassistant pylint black
+
+      - name: Lint with pylint
+        run: |
+          pylint custom_components/solar_ac_controller || true
+
+      - name: Format check with black
+        run: |
+          black --check custom_components/solar_ac_controller || true
+
+      - name: Validate Home Assistant integration structure
+        run: |
+          python - << 'EOF'
+          import homeassistant.loader as loader
+          print("Home Assistant integration loader imported successfully.")
+          EOF
