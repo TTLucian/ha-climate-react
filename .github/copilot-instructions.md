@@ -223,8 +223,7 @@ https://my.home-assistant.io/redirect/config_flow_start?domain=climate_react
 
 ## Reference Files
 
-- **Main README**: [../../README.md](../../README.md) - User-facing documentation
-- **Integration README**: [../../custom_components/climate_react/README.md](../../custom_components/climate_react/README.md) - Detailed feature docs
+- **Integration README**: [../../ha-climate-react/README.md](../../ha-climate-react/README.md) - Detailed feature docs
 - **HA Integration Docs**: https://developers.home-assistant.io/docs/creating_integration_manifest
 - **Config Flow Guide**: https://developers.home-assistant.io/docs/config_entries_config_flow_handler
 
