@@ -1,0 +1,69 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Set up Climate React",
+        "description": "Configure Climate React to automatically control your climate device based on temperature and humidity thresholds.",
+        "data": {
+          "climate_entity": "Climate Entity",
+          "use_external_temp_sensor": "Use External Temperature Sensor",
+          "temperature_sensor": "Temperature Sensor",
+          "use_humidity": "Enable Humidity Control",
+          "use_external_humidity_sensor": "Use External Humidity Sensor",
+          "humidity_sensor": "Humidity Sensor",
+          "humidifier_entity": "Humidifier Entity (Optional)",
+          "min_temp_threshold": "Minimum Temperature Threshold",
+          "max_temp_threshold": "Maximum Temperature Threshold",
+          "min_run_time_minutes": "Minimum Run Time Between Mode Changes (minutes)",
+          "min_humidity_threshold": "Minimum Humidity Threshold",
+          "max_humidity_threshold": "Maximum Humidity Threshold",
+          "mode_low_temp": "HVAC Mode for Low Temperature",
+          "mode_high_temp": "HVAC Mode for High Temperature",
+          "mode_high_humidity": "HVAC Mode for High Humidity",
+          "fan_low_temp": "Fan Mode for Low Temperature",
+          "fan_high_temp": "Fan Mode for High Temperature",
+          "fan_high_humidity": "Fan Mode for High Humidity",
+          "swing_low_temp": "Swing Mode for Low Temperature",
+          "swing_high_temp": "Swing Mode for High Temperature",
+          "swing_high_humidity": "Swing Mode for High Humidity",
+          "enabled": "Enable Climate React"
+        }
+      }
+    },
+    "error": {
+      "entity_not_found": "The specified entity was not found",
+      "entity_required": "Entity is required when using external sensor",
+      "min_greater_than_max": "Minimum threshold must be less than maximum threshold"
+    },
+    "abort": {
+      "already_configured": "This climate entity is already configured"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Climate React Options",
+        "description": "Adjust temperature and humidity thresholds, HVAC modes, and fan/swing settings.",
+        "data": {
+          "min_temp_threshold": "Minimum Temperature Threshold",
+          "max_temp_threshold": "Maximum Temperature Threshold",
+          "min_humidity_threshold": "Minimum Humidity Threshold",
+          "max_humidity_threshold": "Maximum Humidity Threshold",
+          "mode_low_temp": "HVAC Mode for Low Temperature",
+          "mode_high_temp": "HVAC Mode for High Temperature",
+          "mode_high_humidity": "HVAC Mode for High Humidity",
+          "fan_low_temp": "Fan Mode for Low Temperature",
+          "fan_high_temp": "Fan Mode for High Temperature",
+          "fan_high_humidity": "Fan Mode for High Humidity",
+          "swing_low_temp": "Swing Mode for Low Temperature",
+          "swing_high_temp": "Swing Mode for High Temperature",
+          "swing_high_humidity": "Swing Mode for High Humidity",
+          "enabled": "Enable Climate React"
+        }
+      }
+    },
+    "error": {
+      "min_greater_than_max": "Minimum threshold must be less than maximum threshold"
+    }
+  }
+}

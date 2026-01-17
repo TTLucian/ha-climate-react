@@ -1,0 +1,141 @@
+# Climate React - Home Assistant Custom Integration
+
+[![GitHub release](https://img.shields.io/github/release/ttlucian/ha-climate-react.svg)](https://github.com/ttlucian/ha-climate-react/releases)
+[![License](https://img.shields.io/github/license/ttlucian/ha-climate-react.svg)](LICENSE)
+[![HACS](https://img.shields.io/badge/HACS-Custom-orange)](https://github.com/hacs/integration)
+[![Install with HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=TTLucian&repository=ha-climate-react&category=integration)
+[![Add Integration](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start?domain=climate_react)
+
+A Home Assistant custom integration that automatically controls your HVAC system based on temperature and humidity thresholds. Inspired by Sensibo's Climate React feature with extended functionality.
+
+## 🌟 Features
+
+- **Automatic Temperature Control**: Switch between heating/cooling based on sensor readings
+- **Humidity Management**: Automatic dehumidification and humidification with humidifier entity support
+- **Flexible Sensor Input**: Use external sensors or climate entity's built-in temperature/humidity
+- **Fan & Swing Automation**: Configure different settings for each condition (cold/hot/humid)
+- **Capability Matching**: Select entities only show modes/fans/swings your climate supports
+- **Minimum Runtime Protection**: Configurable minimum time between mode changes (prevents rapid cycling)
+- **Manual Override Detection**: Gracefully disables automation when user manually changes mode
+- **Enhanced Status Sensor**: Shows current state, temperature, humidity, and thresholds
+- **UI Configuration**: Easy setup through Home Assistant's interface
+- **Dynamic Adjustments**: Update thresholds on-the-fly
+- **Enable/Disable Control**: Simple switch to turn automation on/off
+- **Multi-AC Support**: Run independent instances for multiple climate entities
+
+## 📦 Installation
+
+### Via HACS (Custom Repository)
+1. Open HACS in Home Assistant
+2. Go to **Integrations** → **⋮ (menu)** → **Custom repositories**
+3. Add repository: `https://github.com/TTLucian/ha-climate-react`
+4. Select category: **Integration**
+5. Click **Add**
+6. Go back to **Integrations**
+7. Search for **Climate React**
+8. Click **Install**
+9. Restart Home Assistant
+
+Or click here to add the repository directly:
+[![Add Climate React Repo](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=TTLucian&repository=ha-climate-react&category=integration)
+
+### Manual Installation
+1. Download the latest release from [GitHub](https://github.com/TTLucian/ha-climate-react/releases)
+2. Extract to `config/custom_components/climate_react/`
+3. Restart Home Assistant
+
+See [Integration Documentation](custom_components/climate_react/README.md#installation) for detailed instructions.
+
+## 📚 Documentation
+
+Full documentation is available in the [integration README](custom_components/climate_react/README.md)
+
+## 🚀 Quick Start
+
+1. Install via HACS or manually
+2. Restart Home Assistant
+3. Go to **Settings → Devices & Services → Integrations**
+4. Click **Create Integration** and search for **Climate React**
+5. Select your climate entity
+6. Configure temperature sensor (optional - can use climate entity's built-in)
+7. Configure humidity sensor (optional - if you want humidity control)
+8. Click **Finish**
+9. Adjust thresholds and modes in the integration's device settings
+
+## 💡 Example Use Cases
+
+- **Bedroom**: Keep temperature between 18-26°C, heat at night, cool during day
+- **Humidity Control**: Prevent mold - dehumidify above 60%, humidify below 30%
+- **Office**: Maintain 20-25°C, adjust fan speed based on temperature
+- **Energy Efficiency**: Use climate entity's temperature instead of extra sensors
+- **Multi-Zone**: Set up separate instances for bedroom, living room, office, etc.
+
+## ⚙️ Configuration
+
+All configuration happens through Home Assistant UI:
+
+**Setup (Config Flow):**
+- Climate entity (required)
+- External temperature sensor (optional)
+- External humidity sensor (optional)
+- Humidifier entity (optional)
+
+**After Setup (Device Entities):**
+- **Switch**: Climate React Enable/Disable
+- **Numbers**: Temperature/humidity thresholds, target temperatures, delays, min runtime
+- **Selects**: HVAC modes, fan modes, swing modes for each condition
+- **Sensors**: Status, current readings
+
+## 🛠️ Features Detail
+
+### Temperature Control
+- **Min Temperature**: Temperature at which heating triggers
+- **Max Temperature**: Temperature at which cooling triggers
+- **Target Temperatures**: Set specific target temp for heating/cooling
+- **Minimum Runtime**: Prevent mode changes within X minutes (default 5)
+
+### Humidity Control (Optional)
+- **Min Humidity**: Humidity level to trigger humidification
+- **Max Humidity**: Humidity level to trigger dehumidification
+- Requires humidity sensor and/or humidifier entity
+
+### Mode Configuration
+- **Low Temperature**: Heating mode (heat, fan_only, off)
+- **High Temperature**: Cooling mode (cool, fan_only, off)
+- **High Humidity**: Dehumidify mode (dry, fan_only, off)
+- Only shows modes your climate entity supports
+
+### Safety Features
+- **Manual Override Detection**: Detects manual mode changes and disables automation
+- **Minimum Runtime**: Prevents rapid mode switching
+- **Capability Matching**: Only creates entities for supported features
+- **Graceful Degradation**: Works without external sensors
+
+## 📊 Development
+
+This project follows Home Assistant's integration development guidelines:
+- Config Flow for UI-based setup
+- Options Flow for post-setup configuration  
+- Event-driven (no polling for efficiency)
+- Proper device grouping
+- State change listeners for sensor monitoring
+
+See [.github/copilot-instructions.md](.github/copilot-instructions.md) for detailed development guidelines.
+
+## 📝 License
+
+MIT License - see [LICENSE](LICENSE) file for details
+
+## 🤝 Contributing
+
+Contributions welcome! Please:
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Test thoroughly
+5. Open a pull request
+
+## 📞 Support
+
+- [Issues](https://github.com/TTLucian/ha-climate-react/issues) - Bug reports and feature requests
+- [Discussions](https://github.com/TTLucian/ha-climate-react/discussions) - Questions and ideas
