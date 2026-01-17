@@ -1,15 +1,6 @@
 name-template: 'Climate React v$NEXT_PATCH_VERSION'
 tag-template: 'v$NEXT_PATCH_VERSION'
 
-version-template: $MAJOR.$MINOR.$PATCH
-versioning-strategy: auto
-
-autolabeler:
-  - label: 'breaking-change'
-    bump: major
-  - label: 'feature'
-    bump: minor
-
 categories:
   - title: '🆕 New Sensors & Entities'
     labels: ['sensor', 'binary_sensor', 'entity']
@@ -26,5 +17,16 @@ categories:
 
 change-template: '- $TITLE @$AUTHOR (#$NUMBER)'
 
-# Instead of inline template, point to your markdown file
-template-path: release_template.md
+template: |
+  # 🚀 – Version $NEXT_PATCH_VERSION
+  
+  ## Changes
+  $CHANGES
+  
+  ### Installation
+  Update via HACS or download the ZIP from this release and extract into:
+  
+  `custom_components/climate_react/`
+  
+  Restart Home Assistant after updating.
+
