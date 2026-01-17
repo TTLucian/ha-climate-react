@@ -179,10 +179,10 @@ class ClimateReactBaseSelect(SelectEntity):
         self._unsub_climate: Callable[[], None] | None = None
         self._attr_device_info = {
             "identifiers": {(DOMAIN, entry.entry_id)},
-            "name": f"Climate React - {entry.data[CONF_CLIMATE_ENTITY]}",
-            "manufacturer": "Climate React",
+            "name": controller.get_device_name(),
+            "manufacturer": "TTLucian",
             "model": "Climate Automation Controller",
-            "sw_version": "0.1.0",
+            "hw_version": "0.1.0",
         }
 
     async def async_added_to_hass(self) -> None:

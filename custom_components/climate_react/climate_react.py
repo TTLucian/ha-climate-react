@@ -108,6 +108,17 @@ class ClimateReactController:
         """Check if Climate React is enabled."""
         return self._enabled
 
+    def get_device_name(self) -> str:
+        """Get the device name for all entities."""
+        climate_entity = self.climate_entity
+        state = self.hass.states.get(climate_entity)
+        if state and state.attributes.get("friendly_name"):
+            friendly_name = state.attributes["friendly_name"]
+            return f"Climate React {friendly_name}"
+        # Fallback: extract entity name from entity_id (e.g., climate.study -> Study)
+        entity_name = climate_entity.split(".")[-1].replace("_", " ").title()
+        return f"Climate React {entity_name}"
+
     def _can_change_mode(self) -> bool:
         """Check if minimum run time has elapsed since last mode change."""
         if self._last_mode_change_time is None:

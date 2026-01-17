@@ -76,10 +76,10 @@ class ClimateReactBaseNumber(NumberEntity):
         self._entry = entry
         self._attr_device_info = {
             "identifiers": {(DOMAIN, entry.entry_id)},
-            "name": f"Climate React - {entry.data[CONF_CLIMATE_ENTITY]}",
-            "manufacturer": "Climate React",
+            "name": controller.get_device_name(),
+            "manufacturer": "TTLucian",
             "model": "Climate Automation Controller",
-            "sw_version": "0.1.0",
+            "hw_version": "0.1.0",
         }
 
     async def async_set_native_value(self, value: float) -> None:
@@ -276,16 +276,3 @@ class ClimateReactMinRunTimeNumber(ClimateReactBaseNumber):
         self._attr_unique_id = f"{entry.entry_id}_min_run_time"
         config = {**entry.data, **entry.options}
         self._attr_native_value = config.get(CONF_MIN_RUN_TIME, DEFAULT_MIN_RUN_TIME)
-    _attr_native_unit_of_measurement = PERCENTAGE
-    _attr_native_min_value = 0
-    _attr_native_max_value = 100
-    _attr_native_step = 1
-    _config_key = CONF_MAX_HUMIDITY
-    _service_key = "max_humidity"
-
-    def __init__(self, controller: ClimateReactController, entry: ConfigEntry) -> None:
-        """Initialize the max humidity number."""
-        super().__init__(controller, entry)
-        self._attr_unique_id = f"{entry.entry_id}_max_humidity"
-        config = {**entry.data, **entry.options}
-        self._attr_native_value = config.get(CONF_MAX_HUMIDITY, 60.0)

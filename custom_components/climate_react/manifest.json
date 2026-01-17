@@ -1,7 +1,7 @@
 {
   "domain": "climate_react",
   "name": "Climate React",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "documentation": "https://github.com/TTLucian/ha-climate-react",
   "issue_tracker": "https://github.com/TTLucian/ha-climate-react/issues",
   "requirements": [],
@@ -9,6 +9,7 @@
     "@TTLucian"
   ],
   "config_flow": true,
+  "diagnostics": true,
   "dependencies": [],
   "iot_class": "local_polling",
   "integration_type": "device"

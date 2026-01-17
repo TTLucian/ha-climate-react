@@ -39,10 +39,10 @@ class ClimateReactSwitch(SwitchEntity):
         self._attr_unique_id = f"{entry.entry_id}_switch"
         self._attr_device_info = {
             "identifiers": {(DOMAIN, entry.entry_id)},
-            "name": f"Climate React - {entry.data[CONF_CLIMATE_ENTITY]}",
-            "manufacturer": "Climate React",
+            "name": controller.get_device_name(),
+            "manufacturer": "TTLucian",
             "model": "Climate Automation Controller",
-            "sw_version": "0.1.0",
+            "hw_version": "0.1.0",
         }
 
     @property
