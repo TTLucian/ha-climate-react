@@ -210,13 +210,6 @@ async_track_state_change_event(
 - [ ] External sensors work when enabled
 - [ ] Delays apply between service calls
 
-## Deployment
-
-### HACS Installation
-Users can install via:
-- Manual HACS search: "Climate React"
-- Direct HACS link: https://my.home-assistant.io/redirect/hacs_repository/?owner=TTLucian&repository=ha-climate-react&category=integration
-
 ### Quick Setup
 Users can add integration directly from:
 https://my.home-assistant.io/redirect/config_flow_start?domain=climate_react
