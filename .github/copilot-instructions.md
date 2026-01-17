@@ -381,7 +381,7 @@ async def async_select_option(self, option: str) -> None:
 
 ## Reference Files
 
-- **Blueprint**: [workflows/copilot-instructions.md](workflows/copilot-instructions.md) - Complete file-by-file specifications
+- **Blueprint**: [copilot-instructions.md](copilot-instructions.md) - Complete file-by-file specifications
 - **HA Integration Docs**: https://developers.home-assistant.io/docs/creating_integration_manifest
 - **Config Flow Guide**: https://developers.home-assistant.io/docs/config_entries_config_flow_handler
 
