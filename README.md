@@ -1,10 +1,11 @@
 # Climate React - Home Assistant Custom Integration
 
-[![GitHub release](https://img.shields.io/github/release/TTLucian/ha-climate-react.svg)](https://github.com/TTLucian/ha-climate-react/releases)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![HACS](https://img.shields.io/badge/HACS-Custom-orange)](https://github.com/hacs/integration)
-[![Install with HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=TTLucian&repository=ha-climate-react&category=integration)
-[![Add Integration](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start?domain=climate_react)
+<p align="center">
+  <img src="https://img.shields.io/github/v/release/TTLucian/ha-solar-ac-controller?style=for-the-badge" />
+  <img src="https://img.shields.io/github/license/TTLucian/ha-solar-ac-controller?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/HACS-Custom-orange.svg?style=for-the-badge" />
+  <img src="https://img.shields.io/github/actions/workflow/status/TTLucian/ha-solar-ac-controller/validate.yml?style=for-the-badge" />
+</p>
 
 A Home Assistant custom integration that automatically controls your HVAC system based on temperature and humidity thresholds. Inspired by Sensibo's Climate React feature with extended functionality.
 
