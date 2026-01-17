@@ -7,6 +7,7 @@ This is a **Home Assistant custom integration** called `climate_react` that repl
 **Current Status**: ✅ **Feature Complete** - Ready for testing and distribution via HACS
 
 **Key Differentiators:**
+
 - No Node-RED needed - all automation in Home Assistant
 - Capability-aware entity creation (only shows supported modes)
 - Manual override detection prevents automation conflicts
@@ -17,6 +18,7 @@ This is a **Home Assistant custom integration** called `climate_react` that repl
 ## Architecture
 
 ### Component Structure
+
 ```
 custom_components/climate_react/
 ├── __init__.py          # Integration initialization, domain setup, service registration
@@ -35,6 +37,7 @@ custom_components/climate_react/
 ```
 
 ### Data Flow
+
 1. Subscribe to temperature/humidity sensor state changes (or climate entity attributes)
 2. Compare current reading against user-configured thresholds
 3. Check if minimum runtime elapsed since last mode change
@@ -45,6 +48,7 @@ custom_components/climate_react/
 8. Update status sensor with current state (heating/cooling/idle/etc)
 
 ### Key Integration Points
+
 - **Home Assistant Climate Domain**: Controls target climate entity (e.g., `climate.bedroom`)
 - **Sensor Domain**: Reads from external temperature/humidity sensors OR climate entity's attributes
 - **Number Domain**: Provides UI controls for thresholds, target temps, delays, minimum runtime
@@ -57,6 +61,7 @@ custom_components/climate_react/
 ## Implemented Features
 
 ### Core Functionality
+
 ✅ Temperature threshold-based HVAC control (heating/cooling)
 ✅ Optional humidity control (dehumidification/humidification)
 ✅ Humidifier entity support (turn on/off based on humidity)
@@ -64,12 +69,14 @@ custom_components/climate_react/
 ✅ Multi-AC support (separate config entries per climate entity)
 
 ### Sensor Options
+
 ✅ External temperature sensor (optional)
 ✅ External humidity sensor (optional)
 ✅ Built-in climate entity temperature (fallback)
 ✅ Built-in climate entity humidity (fallback)
 
 ### Advanced Features
+
 ✅ Configurable delays between sequential commands (0-5000ms)
 ✅ Configurable minimum runtime between mode changes (0-120 minutes)
 ✅ Manual override detection (disables automation gracefully)
@@ -77,24 +84,27 @@ custom_components/climate_react/
 ✅ Late-loading climate entity support
 
 ### Entity Types Created
+
 ✅ **Switch**: Enable/disable automation
 ✅ **Sensor**: Enhanced status sensor (state + current readings + thresholds)
 ✅ **Number** (7 core + optional):
-   - Min/Max temperature thresholds
-   - Target temperatures (low temp, high temp, high humidity)
-   - Delay between commands (milliseconds)
-   - Minimum run time (minutes)
-   - Min/Max humidity thresholds (only if humidity enabled + humidifier configured for min)
-✅ **Select** (12 when all conditions met):
-   - HVAC modes (low temp, high temp, high humidity) - filtered options
-   - Fan modes (low temp, high temp, high humidity)
-   - Swing modes (low temp, high temp, high humidity)
-   - Horizontal swing modes (low temp, high temp, high humidity)
+
+- Min/Max temperature thresholds
+- Target temperatures (low temp, high temp, high humidity)
+- Delay between commands (milliseconds)
+- Minimum run time (minutes)
+- Min/Max humidity thresholds (only if humidity enabled + humidifier configured for min)
+  ✅ **Select** (12 when all conditions met):
+- HVAC modes (low temp, high temp, high humidity) - filtered options
+- Fan modes (low temp, high temp, high humidity)
+- Swing modes (low temp, high temp, high humidity)
+- Horizontal swing modes (low temp, high temp, high humidity)
 
 ### Home Assistant Patterns
 
 #### Configuration Flow Architecture
-- **Config Flow** (`config_flow.py`): 
+
+- **Config Flow** (`config_flow.py`):
   - Climate entity selection (required)
   - Use external temp sensor checkbox (optional - default: use climate entity's built-in)
   - Temperature sensor selection (only if external checked)
@@ -102,8 +112,7 @@ custom_components/climate_react/
   - Use external humidity sensor checkbox (only if humidity enabled)
   - Humidity sensor selection (only if external humidity checked)
   - Humidifier entity selection (optional)
-  
-- **Options Flow**: 
+- **Options Flow**:
   - Same entity selections as config flow (allow changing after setup)
   - All other parameters controlled via number/select entities
 
@@ -115,7 +124,9 @@ custom_components/climate_react/
 - **Entity Naming**: Uses `has_entity_name = True` for proper hierarchy
 
 #### Device Architecture
+
 All entities belong to one device with:
+
 - **Identifiers**: `(DOMAIN, entry.entry_id)` - ensures uniqueness per climate entity
 - **Name**: "Climate React - [climate_entity_name]"
 - **Model**: "Climate Automation Controller"
@@ -123,30 +134,34 @@ All entities belong to one device with:
 - **SW Version**: "0.1.0"
 
 #### Manual Override Detection
+
 - Tracks last HVAC mode set by automation (`_last_set_hvac_mode`)
 - Listens to climate entity state changes
 - Compares expected mode vs actual mode
-- If mismatch detected: 
+- If mismatch detected:
   - Disables automation (`_enabled = False`)
   - Logs warning with clear context
   - User must manually re-enable switch
 
 #### Minimum Runtime Logic
+
 - Tracks timestamp of last mode change (`_last_mode_change_time`)
 - Threshold checks verify min runtime elapsed before allowing mode change
 - If min runtime not elapsed, threshold is ignored (not mode changed)
 - Example: 5-min runtime + temp oscillates = no rapid cycling
 
 #### Status Sensor States
+
 - "disabled" - automation disabled via switch
 - "waiting" - no sensor reading yet
 - "heating" - temp below min threshold
-- "cooling" - temp above max threshold  
+- "cooling" - temp above max threshold
 - "dehumidifying" - humidity above max threshold
 - "humidifying" - humidity below min threshold
 - "idle" - within comfortable range
 
 #### Status Sensor Attributes
+
 - temperature (current reading if available)
 - temperature_min / temperature_max (configured thresholds)
 - humidity (current reading if available)
@@ -157,6 +172,7 @@ All entities belong to one device with:
 ## Common Implementation Patterns
 
 ### Threshold Comparison Logic
+
 ```python
 # In _async_handle_temperature_threshold()
 if temperature < min_temp:
@@ -168,6 +184,7 @@ elif temperature > max_temp:
 ```
 
 ### Service Call Pattern
+
 ```python
 await self.hass.services.async_call(
     "climate", "set_hvac_mode",
@@ -177,6 +194,7 @@ await self.hass.services.async_call(
 ```
 
 ### Dynamic Mode Filtering
+
 ```python
 # Select entity only shows modes climate actually supports
 _allowed_options = ["heat", "fan_only", "off"]  # for low temp
@@ -186,6 +204,7 @@ options = [opt for opt in supported if opt in self._allowed_options]
 ```
 
 ### State Change Listener Pattern
+
 ```python
 async_track_state_change_event(
     hass, [entity_id], callback_function
@@ -211,6 +230,7 @@ async_track_state_change_event(
 - [ ] Delays apply between service calls
 
 ### Quick Setup
+
 Users can add integration directly from:
 https://my.home-assistant.io/redirect/config_flow_start?domain=climate_react
 
@@ -236,6 +256,7 @@ https://my.home-assistant.io/redirect/config_flow_start?domain=climate_react
 ## Architecture
 
 ### Component Structure
+
 ```
 custom_components/climate_react/
 ├── __init__.py          # Integration initialization, domain setup, service registration
@@ -254,9 +275,11 @@ custom_components/climate_react/
 ```
 
 ### Data Flow
+
 1. Monitor temperature/humidity sensor entities → 2. Compare against user-configured thresholds → 3. Trigger appropriate HVAC mode/fan/swing changes → 4. Respect enable/disable switch state → 5. Update device sensors with current status
 
 ### Key Integration Points
+
 - **Home Assistant Climate Domain**: Controls target climate entity (e.g., `climate.bedroom`)
 - **Sensor Domain**: Reads from external temperature/humidity sensors, exposes status sensors
 - **Number Domain**: Provides threshold controls (min/max temp, humidity)
@@ -268,6 +291,7 @@ custom_components/climate_react/
 ## Home Assistant Specific Patterns
 
 ### Configuration Flow Architecture
+
 - **Config Flow** (`config_flow.py`): Initial setup - prompts for climate entity, temperature sensor, humidity sensor only
 - **Options Flow** (`config_flow.py`): Post-setup editing - allows changing climate entity and sensors only
 - **Number Entities**: Provide UI controls for thresholds (min/max temp/humidity)
@@ -279,7 +303,9 @@ custom_components/climate_react/
 - All parameters except entities are configured through the device's number/select entities
 
 ### Device Architecture
+
 All entities belong to a single device with:
+
 - **Identifiers**: `(DOMAIN, entry.entry_id)`
 - **Name**: "Climate React - [climate_entity_name]"
 - **Model**: "Climate Automation Controller"
@@ -289,16 +315,19 @@ All entities belong to a single device with:
 - All entities must reference the parent climate entity
 
 ### Manifest Requirements
+
 - Specify `config_flow: true` for UI-based setup
 - Include `requirements: []` even if empty (no external Python packages)
 - Set `iot_class: local_polling` for sensor monitoring
 - VAdd `sensor.py` for status and reading displays
+
 7. Add `number.py` for threshold controls
 8. Add `select.py` for mode/fan/swing configuration
 9. Add `services.yaml` and service handlers in `__init__.py`
 10. Update `PLATFORMS` in `__init__.py` to include all entity type
 
 ### Initial Implementation Order
+
 1. Create folder structure in HA config: `config/custom_components/climate_react/`
 2. Implement `manifest.json` and `const.py` first (foundation)
 3. Build `config_flow.py` to enable UI setup
@@ -309,12 +338,14 @@ All entities belong to a single device with:
 8. Add `services.yaml` and service handlers
 
 ### Testing Approach
+
 - Test incrementally - start with basic temperature → mode switching
 - Use Home Assistant's built-in template sensors for testing thresholds
 - Check `home-assistant.log` for debug messages (use `_LOGGER.debug()`)
 - Create test automations that set sensor values programmatically
 
 ### Code Conventions
+
 - Use `async def` for all integration entry points (`async_setup`, `async_setup_entry`)
 - Prefix private methods with `_` (e.g., `_handle_temperature_change`)
 - Store user config in `entry.data` (immutable) and `entry.options` (editable)
@@ -324,7 +355,9 @@ All entities belong to a single device with:
 ## Specific Implementation Guidance
 
 ### Threshold Comparison Logic
+
 Monitor sensor state changes and compare against min/max thresholds:
+
 ```python
 # Example pattern from climate_react.py
 if temp < self.config['min_temp_threshold']:
@@ -334,7 +367,9 @@ elif temp > self.config['max_temp_threshold']:
 ```
 
 ### Service Call Pattern
+
 Use `hass.services.async_call()` to control climate entity:
+
 ```python
 await self.hass.services.async_call(
     "climate", "set_hvac_mode",
@@ -345,7 +380,8 @@ await self.hass.services.async_call(
 ### Entity Implementation Patterns
 
 #### Number Entities
-```python
+
+````python
 async def async_set_native_value(self, value: float) -> None:
     """Update threshold - must update both config entry options and controller."""
     new_options = {**self._entry.options}
@@ -364,9 +400,10 @@ async def async_select_option(self, option: str) -> None:
     new_options = {**self._entry.options}
     new_options[self._config_key] = option
     self.hass.config_entries.async_update_entry(self._entry, options=new_options)
-```
+````
 
 #### Sensor Entities
+
 - Use `async_track_state_change_event` to mirror source sensor values
 - Status sensor derives state from controller's current readings vs thresholds
 - Set `should_poll = False` and update via event callbacks
