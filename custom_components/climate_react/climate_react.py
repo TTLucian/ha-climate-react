@@ -99,7 +99,9 @@ class ClimateReactController:
         """Get the temperature sensor entity ID (or climate entity if using built-in)."""
         use_external = self.entry.data.get(CONF_USE_EXTERNAL_TEMP_SENSOR, False)
         if use_external:
-            return self.entry.data.get(CONF_TEMPERATURE_SENSOR, self.climate_entity)
+            sensor = self.entry.data.get(CONF_TEMPERATURE_SENSOR)
+            if sensor:  # Only return external sensor if it's actually set
+                return sensor
         return self.climate_entity
 
     @property
@@ -111,7 +113,9 @@ class ClimateReactController:
         
         use_external = self.entry.data.get(CONF_USE_EXTERNAL_HUMIDITY_SENSOR, False)
         if use_external:
-            return self.entry.data.get(CONF_HUMIDITY_SENSOR, self.climate_entity)
+            sensor = self.entry.data.get(CONF_HUMIDITY_SENSOR)
+            if sensor:  # Only return external sensor if it's actually set
+                return sensor
         return self.climate_entity
 
     @property

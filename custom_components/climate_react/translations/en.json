@@ -64,6 +64,9 @@
     "error": {
       "entity_not_found": "The specified entity was not found",
       "entity_required": "Entity is required when using external sensor"
+    },
+    "abort": {
+      "reconfigure_successful": "Configuration updated successfully. Integration will reload."
     }
   }
 }

@@ -38,7 +38,15 @@ from .const import (
     CONF_SWING_HIGH_HUMIDITY,
     CONF_SWING_HIGH_TEMP,
     CONF_SWING_LOW_TEMP,
+    CONF_SWING_HORIZONTAL_LOW_TEMP,
+    CONF_SWING_HORIZONTAL_HIGH_TEMP,
+    CONF_SWING_HORIZONTAL_HIGH_HUMIDITY,
     CONF_TEMPERATURE_SENSOR,
+    CONF_TEMP_LOW_TEMP,
+    CONF_TEMP_HIGH_TEMP,
+    CONF_TEMP_HIGH_HUMIDITY,
+    CONF_DELAY_BETWEEN_COMMANDS,
+    CONF_TIMER_MINUTES,
     DEFAULT_ENABLED,
     DEFAULT_FAN_MODE,
     DEFAULT_MAX_HUMIDITY,
@@ -50,6 +58,12 @@ from .const import (
     DEFAULT_MODE_HIGH_TEMP,
     DEFAULT_MODE_LOW_TEMP,
     DEFAULT_SWING_MODE,
+    DEFAULT_SWING_HORIZONTAL_MODE,
+    DEFAULT_TEMP_LOW_TEMP,
+    DEFAULT_TEMP_HIGH_TEMP,
+    DEFAULT_TEMP_HIGH_HUMIDITY,
+    DEFAULT_DELAY_BETWEEN_COMMANDS,
+    DEFAULT_TIMER_MINUTES,
     DEFAULT_LIGHT_SELECT_ON_OPTION,
     DEFAULT_LIGHT_SELECT_OFF_OPTION,
     DEFAULT_ENABLE_LIGHT_CONTROL,
@@ -163,9 +177,9 @@ class ClimateReactConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 self._abort_if_unique_id_configured()
 
                 data = {**self._step1_data}
-                data[CONF_TEMPERATURE_SENSOR] = user_input.get(CONF_TEMPERATURE_SENSOR)
-                data[CONF_HUMIDITY_SENSOR] = user_input.get(CONF_HUMIDITY_SENSOR)
-                data[CONF_HUMIDIFIER_ENTITY] = user_input.get(CONF_HUMIDIFIER_ENTITY)
+                data[CONF_TEMPERATURE_SENSOR] = user_input.get(CONF_TEMPERATURE_SENSOR) or None
+                data[CONF_HUMIDITY_SENSOR] = user_input.get(CONF_HUMIDITY_SENSOR) or None
+                data[CONF_HUMIDIFIER_ENTITY] = user_input.get(CONF_HUMIDIFIER_ENTITY) or None
 
                 # Prepare defaults
                 data[CONF_MIN_TEMP] = DEFAULT_MIN_TEMP
@@ -182,6 +196,14 @@ class ClimateReactConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 data[CONF_SWING_LOW_TEMP] = DEFAULT_SWING_MODE
                 data[CONF_SWING_HIGH_TEMP] = DEFAULT_SWING_MODE
                 data[CONF_SWING_HIGH_HUMIDITY] = DEFAULT_SWING_MODE
+                data[CONF_SWING_HORIZONTAL_LOW_TEMP] = DEFAULT_SWING_MODE
+                data[CONF_SWING_HORIZONTAL_HIGH_TEMP] = DEFAULT_SWING_MODE
+                data[CONF_SWING_HORIZONTAL_HIGH_HUMIDITY] = DEFAULT_SWING_MODE
+                data[CONF_TEMP_LOW_TEMP] = DEFAULT_TEMP_LOW_TEMP
+                data[CONF_TEMP_HIGH_TEMP] = DEFAULT_TEMP_HIGH_TEMP
+                data[CONF_TEMP_HIGH_HUMIDITY] = DEFAULT_TEMP_HIGH_HUMIDITY
+                data[CONF_DELAY_BETWEEN_COMMANDS] = DEFAULT_DELAY_BETWEEN_COMMANDS
+                data[CONF_TIMER_MINUTES] = DEFAULT_TIMER_MINUTES
                 data[CONF_ENABLED] = DEFAULT_ENABLED
                 data[CONF_ENABLE_LIGHT_CONTROL] = data.get(CONF_ENABLE_LIGHT_CONTROL, DEFAULT_ENABLE_LIGHT_CONTROL)
                 data[CONF_LIGHT_ENTITY] = user_input.get(CONF_LIGHT_ENTITY)
@@ -343,10 +365,10 @@ class ClimateReactOptionsFlow(config_entries.OptionsFlow):
             if not errors:
                 # Merge existing data with updated selections
                 data = {**self.config_entry.data, **self._step1_data}
-                data[CONF_TEMPERATURE_SENSOR] = user_input.get(CONF_TEMPERATURE_SENSOR)
-                data[CONF_HUMIDITY_SENSOR] = user_input.get(CONF_HUMIDITY_SENSOR)
-                data[CONF_HUMIDIFIER_ENTITY] = user_input.get(CONF_HUMIDIFIER_ENTITY)
-                data[CONF_LIGHT_ENTITY] = user_input.get(CONF_LIGHT_ENTITY)
+                data[CONF_TEMPERATURE_SENSOR] = user_input.get(CONF_TEMPERATURE_SENSOR) or None
+                data[CONF_HUMIDITY_SENSOR] = user_input.get(CONF_HUMIDITY_SENSOR) or None
+                data[CONF_HUMIDIFIER_ENTITY] = user_input.get(CONF_HUMIDIFIER_ENTITY) or None
+                data[CONF_LIGHT_ENTITY] = user_input.get(CONF_LIGHT_ENTITY) or None
                 data[CONF_LIGHT_SELECT_ON_OPTION] = user_input.get(CONF_LIGHT_SELECT_ON_OPTION, DEFAULT_LIGHT_SELECT_ON_OPTION)
                 data[CONF_LIGHT_SELECT_OFF_OPTION] = user_input.get(CONF_LIGHT_SELECT_OFF_OPTION, DEFAULT_LIGHT_SELECT_OFF_OPTION)
 
@@ -354,7 +376,8 @@ class ClimateReactOptionsFlow(config_entries.OptionsFlow):
                     self.config_entry,
                     data=data,
                 )
-                return self.async_create_entry(title="", data={})
+                # Trigger reload via abort (standard HA pattern for options flow)
+                return self.async_abort(reason="reconfigure_successful")
 
         schema_dict: dict[Any, Any] = {}
 
