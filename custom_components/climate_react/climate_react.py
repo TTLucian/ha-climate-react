@@ -264,7 +264,7 @@ class ClimateReactController:
         await self._async_evaluate_state()
         await self._async_apply_light_behavior(enabled=True)
         _LOGGER.info("Climate React enabled for %s", self.climate_entity)
-        await logbook.async_log_entry(
+        logbook.async_log_entry(
             self.hass,
             "Enabled",
             message="Climate React automation enabled",
@@ -279,7 +279,7 @@ class ClimateReactController:
             await self.async_set_timer(0)
         await self._async_apply_light_behavior(enabled=False)
         _LOGGER.info("Climate React disabled for %s", self.climate_entity)
-        await logbook.async_log_entry(
+        logbook.async_log_entry(
             self.hass,
             "Disabled",
             message="Climate React automation disabled",
@@ -541,7 +541,7 @@ class ClimateReactController:
                 "Temperature %.1f°C < %.1f°C (min) for %s - setting mode to %s",
                 temperature, min_temp, self.climate_entity, mode
             )
-            await logbook.async_log_entry(
+            logbook.async_log_entry(
                 self.hass,
                 "Low Temperature",
                 message=f"Temperature {temperature:.1f}°C below minimum {min_temp:.1f}°C - switching to {mode}",
@@ -563,7 +563,7 @@ class ClimateReactController:
                 "Temperature %.1f°C > %.1f°C (max) for %s - setting mode to %s",
                 temperature, max_temp, self.climate_entity, mode
             )
-            await logbook.async_log_entry(
+            logbook.async_log_entry(
                 self.hass,
                 "High Temperature",
                 message=f"Temperature {temperature:.1f}°C above maximum {max_temp:.1f}°C - switching to {mode}",
@@ -598,7 +598,7 @@ class ClimateReactController:
                     "Humidity %.1f%% < %.1f%% (min) for %s - turning on humidifier %s",
                     humidity, min_humidity, self.climate_entity, self.humidifier_entity
                 )
-                await logbook.async_log_entry(
+                logbook.async_log_entry(
                     self.hass,
                     "Low Humidity",
                     message=f"Humidity {humidity:.1f}% below minimum {min_humidity:.1f}% - turning on humidifier",
@@ -627,10 +627,10 @@ class ClimateReactController:
                     "Humidity %.1f%% > %.1f%% (max) - turning off humidifier %s",
                     humidity, max_humidity, self.humidifier_entity
                 )
-                await logbook.async_log_entry(
+                logbook.async_log_entry(
                     self.hass,
                     "High Humidity",
-                    message=f"Humidity {humidity:.1f}% above maximum {max_humidity:.1f}% - turning off humidifier",
+                    message=f"Humidity {humidity:.1f}% above maximum {max_humidity:.1f}% - turned off humidifier",
                     entity_id=self._get_switch_entity_id(),
                     domain=DOMAIN,
                 )

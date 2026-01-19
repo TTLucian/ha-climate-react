@@ -69,14 +69,12 @@ class ClimateReactSwitch(SwitchEntity):
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn on Climate React."""
         await self._controller.async_enable()
-        # Force icon update before state write
         self._attr_icon = "mdi:thermostat-auto"
         self.async_write_ha_state()
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Turn off Climate React."""
         await self._controller.async_disable()
-        # Force icon update before state write
         self._attr_icon = "mdi:thermostat-off"
         self.async_write_ha_state()
 
