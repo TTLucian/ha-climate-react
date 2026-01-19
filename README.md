@@ -15,6 +15,8 @@ A Home Assistant custom integration that automatically controls your HVAC system
 - **Humidity Management**: Automatic dehumidification and humidification with humidifier entity support
 - **Flexible Sensor Input**: Use external sensors or climate entity's built-in temperature/humidity
 - **Fan & Swing Automation**: Configure different settings for each condition (cold/hot/humid)
+- **Display Light Control**: Optionally toggle the AC display light when automation starts/stops and around commands
+- **Countdown Timer**: Built-in timer entity to auto-disable the automation after a set duration
 - **Capability Matching**: Select entities only show modes/fans/swings your climate supports
 - **Minimum Runtime Protection**: Configurable minimum time between mode changes (prevents rapid cycling)
 - **Manual Override Detection**: Gracefully disables automation when user manually changes mode
@@ -57,11 +59,9 @@ Full documentation is available in the [integration README](custom_components/cl
 2. Restart Home Assistant
 3. Go to **Settings → Devices & Services → Integrations**
 4. Click **Create Integration** and search for **Climate React**
-5. Select your climate entity
-6. Configure temperature sensor (optional - can use climate entity's built-in)
-7. Configure humidity sensor (optional - if you want humidity control)
-8. Click **Finish**
-9. Adjust thresholds and modes in the integration's device settings
+5. Step 1: choose your climate entity and toggle features (external temperature, humidity use, external humidity, light control)
+6. Step 2: provide required entities for enabled features (temperature sensor when external temp is on, humidity sensor when external humidity is on, light entity when light control is on); humidifier remains optional
+7. Finish and adjust thresholds/modes in the integration's device settings
 
 ## 💡 Example Use Cases
 
@@ -76,16 +76,14 @@ Full documentation is available in the [integration README](custom_components/cl
 All configuration happens through Home Assistant UI:
 
 **Setup (Config Flow):**
-- Climate entity (required)
-- External temperature sensor (optional)
-- External humidity sensor (optional)
-- Humidifier entity (optional)
+- Climate entity (required) plus toggles for external temperature, humidity use, external humidity, and light control
+- Required selectors only for enabled features (external temperature sensor, external humidity sensor, light entity). Humidifier is optional.
 
 **After Setup (Device Entities):**
-- **Switch**: Climate React Enable/Disable
-- **Numbers**: Temperature/humidity thresholds, target temperatures, delays, min runtime
-- **Selects**: HVAC modes, fan modes, swing modes for each condition
-- **Sensors**: Status, current readings
+- **Switch**: Climate React enable/disable and optional light control switch
+- **Numbers**: Temperature/humidity thresholds, target temperatures, delays, minimum runtime, timer minutes
+- **Selects**: HVAC modes, fan modes, swing modes, light behavior per condition
+- **Sensors**: Status, current readings, timer countdown
 
 ## 🛠️ Features Detail
 
