@@ -29,6 +29,7 @@ A Home Assistant custom integration that automatically controls your HVAC system
 ## 📦 Installation
 
 ### Via HACS (Custom Repository)
+
 1. Open HACS in Home Assistant
 2. Go to **Integrations** → **⋮ (menu)** → **Custom repositories**
 3. Add repository: `https://github.com/TTLucian/ha-climate-react`
@@ -43,6 +44,7 @@ Or click here to add the repository directly:
 [![Add Climate React Repo](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=TTLucian&repository=ha-climate-react&category=integration)
 
 ### Manual Installation
+
 1. Download the latest release from [GitHub](https://github.com/TTLucian/ha-climate-react/releases)
 2. Extract to `config/custom_components/climate_react/`
 3. Restart Home Assistant
@@ -76,10 +78,12 @@ Full documentation is available in the [integration README](custom_components/cl
 All configuration happens through Home Assistant UI:
 
 **Setup (Config Flow):**
+
 - Climate entity (required) plus toggles for external temperature, humidity use, external humidity, and light control
 - Required selectors only for enabled features (external temperature sensor, external humidity sensor, light entity). Humidifier is optional.
 
 **After Setup (Device Entities):**
+
 - **Switch**: Climate React enable/disable and optional light control switch
 - **Numbers**: Temperature/humidity thresholds, target temperatures, delays, minimum runtime, timer minutes
 - **Selects**: HVAC modes, fan modes, swing modes, light behavior per condition
@@ -88,23 +92,27 @@ All configuration happens through Home Assistant UI:
 ## 🛠️ Features Detail
 
 ### Temperature Control
+
 - **Min Temperature**: Temperature at which heating triggers
 - **Max Temperature**: Temperature at which cooling triggers
 - **Target Temperatures**: Set specific target temp for heating/cooling
 - **Minimum Runtime**: Prevent mode changes within X minutes (default 5)
 
 ### Humidity Control (Optional)
+
 - **Min Humidity**: Humidity level to trigger humidification
 - **Max Humidity**: Humidity level to trigger dehumidification
 - Requires humidity sensor and/or humidifier entity
 
 ### Mode Configuration
+
 - **Low Temperature**: Heating mode (heat, fan_only, off)
 - **High Temperature**: Cooling mode (cool, fan_only, off)
 - **High Humidity**: Dehumidify mode (dry, fan_only, off)
 - Only shows modes your climate entity supports
 
 ### Safety Features
+
 - **Manual Override Detection**: Detects manual mode changes and disables automation
 - **Minimum Runtime**: Prevents rapid mode switching
 - **Capability Matching**: Only creates entities for supported features
@@ -113,8 +121,9 @@ All configuration happens through Home Assistant UI:
 ## 📊 Development
 
 This project follows Home Assistant's integration development guidelines:
+
 - Config Flow for UI-based setup
-- Options Flow for post-setup configuration  
+- Options Flow for post-setup configuration
 - Event-driven (no polling for efficiency)
 - Proper device grouping
 - State change listeners for sensor monitoring
@@ -128,6 +137,7 @@ MIT License - see [LICENSE](LICENSE) file for details
 ## 🤝 Contributing
 
 Contributions welcome! Please:
+
 1. Fork the repository
 2. Create a feature branch
 3. Make your changes
