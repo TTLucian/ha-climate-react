@@ -286,7 +286,7 @@ class ClimateReactTimerNumber(ClimateReactBaseNumber):
     _attr_icon = "mdi:timer-outline"
     _attr_native_unit_of_measurement = "min"
     _attr_native_min_value = 0
-    _attr_native_max_value = 720
+    _attr_native_max_value = 240
     _attr_native_step = 1
     _attr_mode = "slider"
     _config_key = CONF_TIMER_MINUTES

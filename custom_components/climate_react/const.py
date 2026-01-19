@@ -78,11 +78,6 @@ MODE_DRY = "dry"
 MODE_AUTO = "auto"
 MODE_FAN_ONLY = "fan_only"
 
-# Service names
-SERVICE_ENABLE = "enable"
-SERVICE_DISABLE = "disable"
-SERVICE_UPDATE_THRESHOLDS = "update_thresholds"
-
 # Data keys
 DATA_COORDINATOR = "coordinator"
 DATA_UNSUB = "unsub"

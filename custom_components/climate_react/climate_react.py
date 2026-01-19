@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 from typing import Any, Callable
 
 from homeassistant.components.climate import HVACMode
+from homeassistant.components import logbook
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN
 from homeassistant.core import Event, HomeAssistant, State, callback
@@ -89,6 +90,10 @@ class ClimateReactController:
     def config(self) -> dict[str, Any]:
         """Get merged configuration (data + options)."""
         return {**self.entry.data, **self.entry.options}
+
+    def _get_switch_entity_id(self) -> str:
+        """Get the switch entity ID for logbook entries."""
+        return f"switch.climate_react_{self.entry.entry_id.replace('-', '_')}"
 
     @property
     def climate_entity(self) -> str:
@@ -258,6 +263,11 @@ class ClimateReactController:
         await self._async_evaluate_state()
         await self._async_apply_light_behavior(enabled=True)
         _LOGGER.info("Climate React enabled for %s", self.climate_entity)
+        await logbook.async_log_entry(
+            self.hass,
+            "Climate React enabled",
+            entity_id=self._get_switch_entity_id(),
+        )
 
     async def async_disable(self) -> None:
         """Disable Climate React."""
@@ -266,6 +276,11 @@ class ClimateReactController:
             await self.async_set_timer(0)
         await self._async_apply_light_behavior(enabled=False)
         _LOGGER.info("Climate React disabled for %s", self.climate_entity)
+        await logbook.async_log_entry(
+            self.hass,
+            "Climate React disabled",
+            entity_id=self._get_switch_entity_id(),
+        )
 
     async def async_set_light_control_enabled(self, enabled: bool) -> None:
         """Enable or disable light control and persist the choice."""
@@ -521,6 +536,11 @@ class ClimateReactController:
                 "Temperature %.1f°C < %.1f°C (min) for %s - setting mode to %s",
                 temperature, min_temp, self.climate_entity, mode
             )
+            await logbook.async_log_entry(
+                self.hass,
+                f"Temperature {temperature:.1f}°C below minimum {min_temp:.1f}°C - switching to {mode}",
+                entity_id=self._get_switch_entity_id(),
+            )
             
             await self._async_set_climate(mode, fan_mode, swing_mode, swing_horizontal_mode, target_temp)
             
@@ -535,6 +555,11 @@ class ClimateReactController:
             _LOGGER.info(
                 "Temperature %.1f°C > %.1f°C (max) for %s - setting mode to %s",
                 temperature, max_temp, self.climate_entity, mode
+            )
+            await logbook.async_log_entry(
+                self.hass,
+                f"Temperature {temperature:.1f}°C above maximum {max_temp:.1f}°C - switching to {mode}",
+                entity_id=self._get_switch_entity_id(),
             )
             
             await self._async_set_climate(mode, fan_mode, swing_mode, swing_horizontal_mode, target_temp)
@@ -564,6 +589,11 @@ class ClimateReactController:
                     "Humidity %.1f%% < %.1f%% (min) for %s - turning on humidifier %s",
                     humidity, min_humidity, self.climate_entity, self.humidifier_entity
                 )
+                await logbook.async_log_entry(
+                    self.hass,
+                    f"Humidity {humidity:.1f}% below minimum {min_humidity:.1f}% - turning on humidifier",
+                    entity_id=self._get_switch_entity_id(),
+                )
                 # Determine the correct domain based on entity_id
                 domain = self.humidifier_entity.split(".")[0]
                 service = "turn_on"
@@ -585,6 +615,11 @@ class ClimateReactController:
                 _LOGGER.debug(
                     "Humidity %.1f%% > %.1f%% (max) - turning off humidifier %s",
                     humidity, max_humidity, self.humidifier_entity
+                )
+                await logbook.async_log_entry(
+                    self.hass,
+                    f"Humidity {humidity:.1f}% above maximum {max_humidity:.1f}% - turning off humidifier",
+                    entity_id=self._get_switch_entity_id(),
                 )
                 # Determine the correct domain based on entity_id
                 domain = self.humidifier_entity.split(".")[0]
