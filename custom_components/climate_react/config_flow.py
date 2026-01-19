@@ -205,7 +205,7 @@ class ClimateReactConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             )
 
         if self._step1_data.get(CONF_ENABLE_LIGHT_CONTROL, DEFAULT_ENABLE_LIGHT_CONTROL):
-            schema_dict[vol.Required(CONF_LIGHT_ENTITY)] = selector.EntitySelector(
+                schema_dict[vol.Required(CONF_LIGHT_ENTITY)] = selector.EntitySelector(
                 selector.EntitySelectorConfig(domain=None)
             )
 
@@ -230,11 +230,12 @@ class ClimateReactOptionsFlow(config_entries.OptionsFlow):
         """Initialize options flow."""
         super().__init__()
         self._config_entry = config_entry
+        self._step1_data: dict[str, Any] | None = None
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> config_entries.FlowResult:
-        """Manage the options - all settings in one form."""
+        """Initial options step - core selections before sensors."""
         errors: dict[str, str] = {}
 
         if user_input is not None:
@@ -244,35 +245,11 @@ class ClimateReactOptionsFlow(config_entries.OptionsFlow):
                 errors[CONF_CLIMATE_ENTITY] = "entity_required"
             elif not self.hass.states.get(climate_entity):
                 errors[CONF_CLIMATE_ENTITY] = "entity_not_found"
-            
-            # Validate temperature sensor if external is enabled
-            use_external_temp = user_input.get(CONF_USE_EXTERNAL_TEMP_SENSOR, DEFAULT_USE_EXTERNAL_TEMP_SENSOR)
-            if use_external_temp:
-                temp_sensor = user_input.get(CONF_TEMPERATURE_SENSOR)
-                if not temp_sensor:
-                    errors[CONF_TEMPERATURE_SENSOR] = "entity_required"
-                elif not self.hass.states.get(temp_sensor):
-                    errors[CONF_TEMPERATURE_SENSOR] = "entity_not_found"
-            
-            # Validate humidity sensor if external humidity is enabled
-            use_humidity = user_input.get(CONF_USE_HUMIDITY, DEFAULT_USE_HUMIDITY)
-            use_external_humidity = user_input.get(CONF_USE_EXTERNAL_HUMIDITY_SENSOR, DEFAULT_USE_EXTERNAL_HUMIDITY_SENSOR)
-            if use_humidity and use_external_humidity:
-                humidity_sensor = user_input.get(CONF_HUMIDITY_SENSOR)
-                if not humidity_sensor:
-                    errors[CONF_HUMIDITY_SENSOR] = "entity_required"
-                elif not self.hass.states.get(humidity_sensor):
-                    errors[CONF_HUMIDITY_SENSOR] = "entity_not_found"
-            
             if not errors:
-                # Update entry data with new options
-                self.hass.config_entries.async_update_entry(
-                    self.config_entry,
-                    data=user_input,
-                )
-                return self.async_create_entry(title="", data={})
+                self._step1_data = dict(user_input)
+                return await self.async_step_sensors()
 
-        # Build schema with all fields
+        # Build schema with core fields only
         schema_dict = {
             vol.Required(
                 CONF_CLIMATE_ENTITY,
@@ -286,13 +263,6 @@ class ClimateReactOptionsFlow(config_entries.OptionsFlow):
                 description={"suggested_value": self.config_entry.data.get(CONF_USE_EXTERNAL_TEMP_SENSOR, DEFAULT_USE_EXTERNAL_TEMP_SENSOR)}
             ): selector.BooleanSelector(),
             vol.Optional(
-                CONF_TEMPERATURE_SENSOR,
-                default=self.config_entry.data.get(CONF_TEMPERATURE_SENSOR),
-                description={"suggested_value": self.config_entry.data.get(CONF_TEMPERATURE_SENSOR)}
-            ): selector.EntitySelector(
-                selector.EntitySelectorConfig(domain="sensor", device_class="temperature")
-            ),
-            vol.Optional(
                 CONF_USE_HUMIDITY,
                 default=self.config_entry.data.get(CONF_USE_HUMIDITY, DEFAULT_USE_HUMIDITY),
                 description={"suggested_value": self.config_entry.data.get(CONF_USE_HUMIDITY, DEFAULT_USE_HUMIDITY)}
@@ -303,34 +273,94 @@ class ClimateReactOptionsFlow(config_entries.OptionsFlow):
                 description={"suggested_value": self.config_entry.data.get(CONF_USE_EXTERNAL_HUMIDITY_SENSOR, DEFAULT_USE_EXTERNAL_HUMIDITY_SENSOR)}
             ): selector.BooleanSelector(),
             vol.Optional(
-                CONF_HUMIDITY_SENSOR,
-                default=self.config_entry.data.get(CONF_HUMIDITY_SENSOR),
-                description={"suggested_value": self.config_entry.data.get(CONF_HUMIDITY_SENSOR)}
-            ): selector.EntitySelector(
-                selector.EntitySelectorConfig(domain="sensor", device_class="humidity")
-            ),
-            vol.Optional(
-                CONF_HUMIDIFIER_ENTITY,
-                default=self.config_entry.data.get(CONF_HUMIDIFIER_ENTITY),
-                description={"suggested_value": self.config_entry.data.get(CONF_HUMIDIFIER_ENTITY)}
-            ): selector.EntitySelector(
-                selector.EntitySelectorConfig(domain="humidifier")
-            ),
-            vol.Optional(
                 CONF_ENABLE_LIGHT_CONTROL,
                 default=self.config_entry.data.get(CONF_ENABLE_LIGHT_CONTROL, DEFAULT_ENABLE_LIGHT_CONTROL),
                 description={"suggested_value": self.config_entry.data.get(CONF_ENABLE_LIGHT_CONTROL, DEFAULT_ENABLE_LIGHT_CONTROL)}
             ): selector.BooleanSelector(),
-            vol.Optional(
-                CONF_LIGHT_ENTITY,
-                default=self.config_entry.data.get(CONF_LIGHT_ENTITY),
-                description={"suggested_value": self.config_entry.data.get(CONF_LIGHT_ENTITY)}
-            ): selector.EntitySelector(
-                selector.EntitySelectorConfig(domain=None)
-            ),
         }
 
         options_schema = vol.Schema(schema_dict)
         return self.async_show_form(
             step_id="init", data_schema=options_schema, errors=errors
+        )
+
+    async def async_step_sensors(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.FlowResult:
+        """Second options step - sensors/entities based on toggles."""
+        if not self._step1_data:
+            return await self.async_step_init()
+
+        errors: dict[str, str] = {}
+
+        use_external_temp = self._step1_data.get(CONF_USE_EXTERNAL_TEMP_SENSOR, DEFAULT_USE_EXTERNAL_TEMP_SENSOR)
+        use_humidity = self._step1_data.get(CONF_USE_HUMIDITY, DEFAULT_USE_HUMIDITY)
+        use_external_humidity = self._step1_data.get(CONF_USE_EXTERNAL_HUMIDITY_SENSOR, DEFAULT_USE_EXTERNAL_HUMIDITY_SENSOR)
+        light_control = self._step1_data.get(CONF_ENABLE_LIGHT_CONTROL, DEFAULT_ENABLE_LIGHT_CONTROL)
+
+        if user_input is not None:
+            if use_external_temp:
+                temp_sensor = user_input.get(CONF_TEMPERATURE_SENSOR)
+                if not temp_sensor:
+                    errors[CONF_TEMPERATURE_SENSOR] = "entity_required"
+                elif not self.hass.states.get(temp_sensor):
+                    errors[CONF_TEMPERATURE_SENSOR] = "entity_not_found"
+
+            if use_humidity and use_external_humidity:
+                humidity_sensor = user_input.get(CONF_HUMIDITY_SENSOR)
+                if not humidity_sensor:
+                    errors[CONF_HUMIDITY_SENSOR] = "entity_required"
+                elif not self.hass.states.get(humidity_sensor):
+                    errors[CONF_HUMIDITY_SENSOR] = "entity_not_found"
+
+            if use_humidity:
+                humidifier = user_input.get(CONF_HUMIDIFIER_ENTITY)
+                if humidifier and not self.hass.states.get(humidifier):
+                    errors[CONF_HUMIDIFIER_ENTITY] = "entity_not_found"
+
+            if light_control:
+                light_entity = user_input.get(CONF_LIGHT_ENTITY)
+                if not light_entity:
+                    errors[CONF_LIGHT_ENTITY] = "entity_required"
+                elif not self.hass.states.get(light_entity):
+                    errors[CONF_LIGHT_ENTITY] = "entity_not_found"
+
+            if not errors:
+                # Merge existing data with updated selections
+                data = {**self.config_entry.data, **self._step1_data}
+                data[CONF_TEMPERATURE_SENSOR] = user_input.get(CONF_TEMPERATURE_SENSOR)
+                data[CONF_HUMIDITY_SENSOR] = user_input.get(CONF_HUMIDITY_SENSOR)
+                data[CONF_HUMIDIFIER_ENTITY] = user_input.get(CONF_HUMIDIFIER_ENTITY)
+                data[CONF_LIGHT_ENTITY] = user_input.get(CONF_LIGHT_ENTITY)
+
+                self.hass.config_entries.async_update_entry(
+                    self.config_entry,
+                    data=data,
+                )
+                return self.async_create_entry(title="", data={})
+
+        schema_dict: dict[Any, Any] = {}
+
+        if use_external_temp:
+            schema_dict[vol.Required(CONF_TEMPERATURE_SENSOR)] = selector.EntitySelector(
+                selector.EntitySelectorConfig(domain="sensor", device_class="temperature")
+            )
+
+        if use_humidity and use_external_humidity:
+            schema_dict[vol.Required(CONF_HUMIDITY_SENSOR)] = selector.EntitySelector(
+                selector.EntitySelectorConfig(domain="sensor", device_class="humidity")
+            )
+
+        if use_humidity:
+            schema_dict[vol.Optional(CONF_HUMIDIFIER_ENTITY)] = selector.EntitySelector(
+                selector.EntitySelectorConfig(domain="humidifier")
+            )
+
+        if light_control:
+            schema_dict[vol.Required(CONF_LIGHT_ENTITY)] = selector.EntitySelector(
+                selector.EntitySelectorConfig(domain=None)
+            )
+
+        return self.async_show_form(
+            step_id="sensors", data_schema=vol.Schema(schema_dict), errors=errors
         )

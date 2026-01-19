@@ -24,29 +24,6 @@
           "humidifier_entity": "Humidifier Entity (Optional)",
           "light_entity": "Light Entity (Required when light control is enabled)"
         }
-      },
-      "temperature": {
-        "title": "Temperature Sensor",
-        "description": "Select the external temperature sensor to monitor.",
-        "data": {
-          "temperature_sensor": "Temperature Sensor"
-        }
-      },
-      "humidity": {
-        "title": "Enable Humidity Control",
-        "description": "Would you like to enable humidity control (optional)?",
-        "data": {
-          "use_humidity": "Enable Humidity Control?"
-        }
-      },
-      "humidity_sensor": {
-        "title": "Humidity Configuration",
-        "description": "Configure humidity sensor and humidifier settings.",
-        "data": {
-          "use_external_humidity_sensor": "Use External Humidity Sensor?",
-          "humidity_sensor": "Humidity Sensor",
-          "humidifier_entity": "Humidifier Entity (Optional)"
-        }
       }
     },
     "error": {
@@ -67,36 +44,20 @@
           "use_external_temp_sensor": "Use External Temperature Sensor?",
           "use_external_humidity_sensor": "Use External Humidity Sensor?",
           "use_humidity": "Enable Humidity Control?",
-          "humidity_sensor": "Humidity Sensor",
-          "humidifier_entity": "Humidifier Entity (Optional)",
           "enable_light_control": "Enable Light Control?",
-          "light_entity": "Light Select Entity (Optional)",
           "use_external_temp_sensor_description": "Choose yes to read temperature from an external sensor instead of the climate entity.",
           "use_humidity_description": "Enable humidity-based automation and optional humidifier control.",
           "enable_light_control_description": "Toggle the AC display light before/after commands and when the automation turns on/off."
         }
       },
-      "temperature_options": {
-        "title": "Temperature Sensor",
-        "description": "Select the external temperature sensor to monitor.",
+      "sensors": {
+        "title": "Sensors & Accessories",
+        "description": "Select external sensors and optional devices.",
         "data": {
-          "temperature_sensor": "Temperature Sensor"
-        }
-      },
-      "humidity_options": {
-        "title": "Enable Humidity Control",
-        "description": "Would you like to enable humidity control (optional)?",
-        "data": {
-          "use_humidity": "Enable Humidity Control?"
-        }
-      },
-      "humidity_sensor_options": {
-        "title": "Humidity Configuration",
-        "description": "Configure humidity sensor and humidifier settings.",
-        "data": {
-          "use_external_humidity_sensor": "Use External Humidity Sensor?",
+          "temperature_sensor": "Temperature Sensor",
           "humidity_sensor": "Humidity Sensor",
-          "humidifier_entity": "Humidifier Entity (Optional)"
+          "humidifier_entity": "Humidifier Entity (Optional)",
+          "light_entity": "Light Entity (Required when light control is enabled)"
         }
       }
     },
