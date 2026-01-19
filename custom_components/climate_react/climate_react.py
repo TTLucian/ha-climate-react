@@ -265,8 +265,10 @@ class ClimateReactController:
         _LOGGER.info("Climate React enabled for %s", self.climate_entity)
         await logbook.async_log_entry(
             self.hass,
-            "Climate React enabled",
+            "Enabled",
+            message="Climate React automation enabled",
             entity_id=self._get_switch_entity_id(),
+            domain=DOMAIN,
         )
 
     async def async_disable(self) -> None:
@@ -278,8 +280,10 @@ class ClimateReactController:
         _LOGGER.info("Climate React disabled for %s", self.climate_entity)
         await logbook.async_log_entry(
             self.hass,
-            "Climate React disabled",
+            "Disabled",
+            message="Climate React automation disabled",
             entity_id=self._get_switch_entity_id(),
+            domain=DOMAIN,
         )
 
     async def async_set_light_control_enabled(self, enabled: bool) -> None:
@@ -538,8 +542,10 @@ class ClimateReactController:
             )
             await logbook.async_log_entry(
                 self.hass,
-                f"Temperature {temperature:.1f}°C below minimum {min_temp:.1f}°C - switching to {mode}",
+                "Low Temperature",
+                message=f"Temperature {temperature:.1f}°C below minimum {min_temp:.1f}°C - switching to {mode}",
                 entity_id=self._get_switch_entity_id(),
+                domain=DOMAIN,
             )
             
             await self._async_set_climate(mode, fan_mode, swing_mode, swing_horizontal_mode, target_temp)
@@ -558,8 +564,10 @@ class ClimateReactController:
             )
             await logbook.async_log_entry(
                 self.hass,
-                f"Temperature {temperature:.1f}°C above maximum {max_temp:.1f}°C - switching to {mode}",
+                "High Temperature",
+                message=f"Temperature {temperature:.1f}°C above maximum {max_temp:.1f}°C - switching to {mode}",
                 entity_id=self._get_switch_entity_id(),
+                domain=DOMAIN,
             )
             
             await self._async_set_climate(mode, fan_mode, swing_mode, swing_horizontal_mode, target_temp)
@@ -591,8 +599,10 @@ class ClimateReactController:
                 )
                 await logbook.async_log_entry(
                     self.hass,
-                    f"Humidity {humidity:.1f}% below minimum {min_humidity:.1f}% - turning on humidifier",
+                    "Low Humidity",
+                    message=f"Humidity {humidity:.1f}% below minimum {min_humidity:.1f}% - turning on humidifier",
                     entity_id=self._get_switch_entity_id(),
+                    domain=DOMAIN,
                 )
                 # Determine the correct domain based on entity_id
                 domain = self.humidifier_entity.split(".")[0]
@@ -618,8 +628,10 @@ class ClimateReactController:
                 )
                 await logbook.async_log_entry(
                     self.hass,
-                    f"Humidity {humidity:.1f}% above maximum {max_humidity:.1f}% - turning off humidifier",
+                    "High Humidity",
+                    message=f"Humidity {humidity:.1f}% above maximum {max_humidity:.1f}% - turning off humidifier",
                     entity_id=self._get_switch_entity_id(),
+                    domain=DOMAIN,
                 )
                 # Determine the correct domain based on entity_id
                 domain = self.humidifier_entity.split(".")[0]
