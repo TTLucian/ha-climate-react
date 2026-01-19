@@ -261,11 +261,8 @@ class ClimateReactBaseSelect(SelectEntity):
             _LOGGER.warning("Option %s not supported by climate entity %s", option, self._controller.climate_entity)
             return
 
-        # Update the config entry options
-        new_options = {**self._entry.options}
-        new_options[self._config_key] = option
-        
-        self.hass.config_entries.async_update_entry(self._entry, options=new_options)
+        # Update controller - this updates options without full reload
+        await self._controller.async_update_option(self._config_key, option)
         
         # Update local state
         self._attr_current_option = option

@@ -85,14 +85,8 @@ class ClimateReactBaseNumber(NumberEntity):
 
     async def async_set_native_value(self, value: float) -> None:
         """Update the threshold value."""
-        # Update the config entry options
-        new_options = {**self._entry.options}
-        new_options[self._config_key] = value
-        
-        self.hass.config_entries.async_update_entry(self._entry, options=new_options)
-        
-        # Update controller
-        await self._controller.async_update_thresholds({self._service_key: value})
+        # Update controller - this updates options without full reload
+        await self._controller.async_update_option(self._config_key, value)
         
         # Update local state
         self._attr_native_value = value
@@ -287,7 +281,7 @@ class ClimateReactTimerNumber(ClimateReactBaseNumber):
     _attr_native_unit_of_measurement = "min"
     _attr_native_min_value = 0
     _attr_native_max_value = 240
-    _attr_native_step = 1
+    _attr_native_step = 10
     _attr_mode = "slider"
     _config_key = CONF_TIMER_MINUTES
 

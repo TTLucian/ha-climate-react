@@ -61,21 +61,16 @@ class ClimateReactSwitch(SwitchEntity):
         """Return true if Climate React is enabled."""
         return self._controller.enabled
 
-    @property
-    def icon(self) -> str:
-        """Return the icon for the switch."""
-        return "mdi:thermostat-auto" if self.is_on else "mdi:thermostat-off"
-
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn on Climate React."""
-        await self._controller.async_enable()
         self._attr_icon = "mdi:thermostat-auto"
+        await self._controller.async_enable()
         self.async_write_ha_state()
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Turn off Climate React."""
-        await self._controller.async_disable()
         self._attr_icon = "mdi:thermostat-off"
+        await self._controller.async_disable()
         self.async_write_ha_state()
 
     @property

@@ -319,6 +319,13 @@ class ClimateReactController:
         
         _LOGGER.info("Thresholds updated for %s: %s", self.climate_entity, data)
 
+    async def async_update_option(self, key: str, value: Any) -> None:
+        """Update a single config option without triggering full reload."""
+        new_options = {**self.entry.options}
+        new_options[key] = value
+        self.hass.config_entries.async_update_entry(self.entry, options=new_options)
+        _LOGGER.debug("Option updated for %s: %s = %s", self.climate_entity, key, value)
+
     @callback
     async def _async_climate_available(self, event: Event) -> None:
         """Handle climate entity becoming available."""
@@ -438,6 +445,7 @@ class ClimateReactController:
             self._last_set_hvac_mode = None
             await self._async_apply_light_behavior(enabled=False)
 
+    @callback
     async def _async_humidity_changed(self, event: Event) -> None:
         """Handle humidity sensor state change."""
         if not self._enabled:
@@ -721,51 +729,115 @@ class ClimateReactController:
             if delay_seconds > 0:
                 await asyncio.sleep(delay_seconds)
 
-        # Set HVAC mode
-        if hvac_mode:
-            await self.hass.services.async_call(
-                "climate",
-                "set_hvac_mode",
-                {"entity_id": self.climate_entity, "hvac_mode": hvac_mode},
-                blocking=True,
-            )
+        # Set HVAC mode - use turn_on/off when possible, set_hvac_mode only when changing modes
+        if hvac_mode and hvac_mode != (climate_state.state if climate_state else None):
+            if hvac_mode == MODE_OFF:
+                # Turning off - use turn_off service
+                await self.hass.services.async_call(
+                    "climate",
+                    "turn_off",
+                    {"entity_id": self.climate_entity},
+                    blocking=True,
+                )
+                # Verify it's actually off, fall back to set_hvac_mode if not
+                climate_state = self.hass.states.get(self.climate_entity)
+                if climate_state and climate_state.state != MODE_OFF:
+                    _LOGGER.debug(
+                        "turn_off didn't set mode to off for %s, using set_hvac_mode fallback",
+                        self.climate_entity,
+                    )
+                    await self.hass.services.async_call(
+                        "climate",
+                        "set_hvac_mode",
+                        {"entity_id": self.climate_entity, "hvac_mode": MODE_OFF},
+                        blocking=True,
+                    )
+            elif climate_state and climate_state.state == MODE_OFF:
+                # Currently off, turning on - use turn_on service
+                await self.hass.services.async_call(
+                    "climate",
+                    "turn_on",
+                    {"entity_id": self.climate_entity},
+                    blocking=True,
+                )
+                # Verify it's in the correct mode, fall back to set_hvac_mode if not
+                climate_state = self.hass.states.get(self.climate_entity)
+                if climate_state and (climate_state.state == MODE_OFF or climate_state.state != hvac_mode):
+                    _LOGGER.debug(
+                        "turn_on didn't set %s to required mode %s (current: %s), using set_hvac_mode fallback",
+                        self.climate_entity,
+                        hvac_mode,
+                        climate_state.state,
+                    )
+                    await self.hass.services.async_call(
+                        "climate",
+                        "set_hvac_mode",
+                        {"entity_id": self.climate_entity, "hvac_mode": hvac_mode},
+                        blocking=True,
+                    )
+            else:
+                # Mode change (e.g., heat to cool) - use set_hvac_mode
+                await self.hass.services.async_call(
+                    "climate",
+                    "set_hvac_mode",
+                    {"entity_id": self.climate_entity, "hvac_mode": hvac_mode},
+                    blocking=True,
+                )
             self._last_set_hvac_mode = hvac_mode
             self._last_mode_change_time = datetime.now()
             if delay_seconds > 0:
                 await asyncio.sleep(delay_seconds)
 
+        # Refresh climate state after HVAC changes to get updated attributes
+        climate_state = self.hass.states.get(self.climate_entity)
+
         # Set temperature if provided
         if allow_auxiliary_calls and target_temp is not None and climate_state:
-            await self.hass.services.async_call(
-                "climate",
-                "set_temperature",
-                {"entity_id": self.climate_entity, "temperature": target_temp},
-                blocking=True,
-            )
-            if delay_seconds > 0:
-                await asyncio.sleep(delay_seconds)
+            current_target_temp = climate_state.attributes.get("temperature")
+            # Only set if different or not currently set
+            if current_target_temp == target_temp:
+                _LOGGER.debug("Temperature already at %.1f°C for %s, skipping", target_temp, self.climate_entity)
+            elif current_target_temp != target_temp:
+                await self.hass.services.async_call(
+                    "climate",
+                    "set_temperature",
+                    {"entity_id": self.climate_entity, "temperature": target_temp},
+                    blocking=True,
+                )
+                if delay_seconds > 0:
+                    await asyncio.sleep(delay_seconds)
 
         # Set fan mode if supported and specified
         if allow_auxiliary_calls and fan_mode and climate_state and climate_state.attributes.get("fan_modes"):
-            await self.hass.services.async_call(
-                "climate",
-                "set_fan_mode",
-                {"entity_id": self.climate_entity, "fan_mode": fan_mode},
-                blocking=True,
-            )
-            if delay_seconds > 0:
-                await asyncio.sleep(delay_seconds)
+            current_fan_mode = climate_state.attributes.get("current_fan_mode")
+            # Only set if different from current
+            if current_fan_mode == fan_mode:
+                _LOGGER.debug("Fan mode already set to %s for %s, skipping", fan_mode, self.climate_entity)
+            elif current_fan_mode != fan_mode:
+                await self.hass.services.async_call(
+                    "climate",
+                    "set_fan_mode",
+                    {"entity_id": self.climate_entity, "fan_mode": fan_mode},
+                    blocking=True,
+                )
+                if delay_seconds > 0:
+                    await asyncio.sleep(delay_seconds)
 
         # Set swing mode if supported and specified
         if allow_auxiliary_calls and swing_mode and climate_state and climate_state.attributes.get("swing_modes"):
-            await self.hass.services.async_call(
-                "climate",
-                "set_swing_mode",
-                {"entity_id": self.climate_entity, "swing_mode": swing_mode},
-                blocking=True,
-            )
-            if delay_seconds > 0:
-                await asyncio.sleep(delay_seconds)
+            current_swing_mode = climate_state.attributes.get("swing_mode")
+            # Only set if different from current
+            if current_swing_mode == swing_mode:
+                _LOGGER.debug("Swing mode already set to %s for %s, skipping", swing_mode, self.climate_entity)
+            elif current_swing_mode != swing_mode:
+                await self.hass.services.async_call(
+                    "climate",
+                    "set_swing_mode",
+                    {"entity_id": self.climate_entity, "swing_mode": swing_mode},
+                    blocking=True,
+                )
+                if delay_seconds > 0:
+                    await asyncio.sleep(delay_seconds)
 
         # Set horizontal swing mode if supported and service available
         if (
@@ -774,25 +846,30 @@ class ClimateReactController:
             and climate_state
             and climate_state.attributes.get("swing_horizontal_modes")
         ):
-            if self.hass.services.has_service("climate", "set_swing_horizontal_mode"):
-                await self.hass.services.async_call(
-                    "climate",
-                    "set_swing_horizontal_mode",
-                    {
-                        "entity_id": self.climate_entity,
-                        "swing_horizontal_mode": swing_horizontal_mode,
-                    },
-                    blocking=True,
-                )
-                if delay_seconds > 0:
-                    await asyncio.sleep(delay_seconds)
-            else:
-                if not self._warned_horizontal_service_missing:
-                    _LOGGER.warning(
-                        "Horizontal swing mode requested (%s) but climate domain has no set_swing_horizontal_mode service",
-                        swing_horizontal_mode,
+            current_swing_horizontal = climate_state.attributes.get("swing_horizontal_mode")
+            # Only set if different from current
+            if current_swing_horizontal == swing_horizontal_mode:
+                _LOGGER.debug("Swing horizontal mode already set to %s for %s, skipping", swing_horizontal_mode, self.climate_entity)
+            elif current_swing_horizontal != swing_horizontal_mode:
+                if self.hass.services.has_service("climate", "set_swing_horizontal_mode"):
+                    await self.hass.services.async_call(
+                        "climate",
+                        "set_swing_horizontal_mode",
+                        {
+                            "entity_id": self.climate_entity,
+                            "swing_horizontal_mode": swing_horizontal_mode,
+                        },
+                        blocking=True,
                     )
-                    self._warned_horizontal_service_missing = True
+                    if delay_seconds > 0:
+                        await asyncio.sleep(delay_seconds)
+                else:
+                    if not self._warned_horizontal_service_missing:
+                        _LOGGER.warning(
+                            "Horizontal swing mode requested (%s) but climate domain has no set_swing_horizontal_mode service",
+                            swing_horizontal_mode,
+                        )
+                        self._warned_horizontal_service_missing = True
 
         if toggle_light:
             await self._async_set_light(light_entity, "on")
@@ -807,6 +884,12 @@ class ClimateReactController:
         domain = entity_id.split(".")[0] if "." in entity_id else None
         if not domain:
             _LOGGER.warning("Invalid entity_id format: %s", entity_id)
+            return
+
+        # Check current state before sending command
+        light_state = self.hass.states.get(entity_id)
+        if not light_state:
+            _LOGGER.debug("Light entity %s not found", entity_id)
             return
 
         try:
@@ -824,21 +907,29 @@ class ClimateReactController:
                 else:
                     select_option = self.config.get(CONF_LIGHT_SELECT_OFF_OPTION, DEFAULT_LIGHT_SELECT_OFF_OPTION)
                 
-                await self.hass.services.async_call(
-                    "select",
-                    "select_option",
-                    {"entity_id": entity_id, "option": select_option},
-                    blocking=True,
-                )
+                # Only set if different from current
+                current_option = light_state.state
+                if current_option != select_option:
+                    await self.hass.services.async_call(
+                        "select",
+                        "select_option",
+                        {"entity_id": entity_id, "option": select_option},
+                        blocking=True,
+                    )
             elif domain in ("light", "switch"):
-                # For light/switch entities, use turn_on/turn_off services
+                # For light/switch entities, check current state before toggling
                 service = "turn_on" if option == "on" else "turn_off"
-                await self.hass.services.async_call(
-                    domain,
-                    service,
-                    {"entity_id": entity_id},
-                    blocking=True,
-                )
+                current_state = light_state.state
+                target_state = "on" if option == "on" else "off"
+                
+                # Only set if different from current
+                if current_state != target_state:
+                    await self.hass.services.async_call(
+                        domain,
+                        service,
+                        {"entity_id": entity_id},
+                        blocking=True,
+                    )
             else:
                 _LOGGER.warning("Unsupported light control entity domain: %s", domain)
         except Exception as exc:  # noqa: BLE001
