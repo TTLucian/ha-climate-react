@@ -229,7 +229,7 @@ class ClimateReactConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         if use_humidity:
             schema_dict[vol.Optional(CONF_HUMIDIFIER_ENTITY)] = selector.EntitySelector(
-                selector.EntitySelectorConfig(domain="humidifier")
+                selector.EntitySelectorConfig(domain=["humidifier", "switch"])
             )
 
         if self._step1_data.get(CONF_ENABLE_LIGHT_CONTROL, DEFAULT_ENABLE_LIGHT_CONTROL):
@@ -405,7 +405,7 @@ class ClimateReactOptionsFlow(config_entries.OptionsFlow):
                 CONF_HUMIDIFIER_ENTITY,
                 default=current_humidifier
             )] = selector.EntitySelector(
-                selector.EntitySelectorConfig(domain="humidifier")
+                selector.EntitySelectorConfig(domain=["humidifier", "switch"])
             )
 
         if light_control:
