@@ -6,7 +6,23 @@
         "description": "Choose the climate entity to automate and decide if you want to use an external temperature sensor.",
         "data": {
           "climate_entity": "Climate Entity",
-          "use_external_temp_sensor": "Use External Temperature Sensor?"
+          "use_external_temp_sensor": "Use External Temperature Sensor?",
+          "use_external_humidity_sensor": "Use External Humidity Sensor?",
+          "use_humidity": "Enable Humidity Control?",
+          "enable_light_control": "Enable Light Control?",
+          "use_external_temp_sensor_description": "Choose yes to read temperature from an external sensor instead of the climate entity.",
+          "use_humidity_description": "Enable humidity-based automation and optional humidifier control.",
+          "enable_light_control_description": "Toggle the AC display light before/after commands and when the automation turns on/off."
+        }
+      },
+      "sensors": {
+        "title": "Sensors & Accessories",
+        "description": "Select external sensors and optional devices.",
+        "data": {
+          "temperature_sensor": "Temperature Sensor",
+          "humidity_sensor": "Humidity Sensor",
+          "humidifier_entity": "Humidifier Entity (Optional)",
+          "light_entity": "Light Entity (Required when light control is enabled)"
         }
       },
       "temperature": {
@@ -48,7 +64,16 @@
         "description": "Choose the climate entity to automate and decide if you want to use an external temperature sensor.",
         "data": {
           "climate_entity": "Climate Entity",
-          "use_external_temp_sensor": "Use External Temperature Sensor?"
+          "use_external_temp_sensor": "Use External Temperature Sensor?",
+          "use_external_humidity_sensor": "Use External Humidity Sensor?",
+          "use_humidity": "Enable Humidity Control?",
+          "humidity_sensor": "Humidity Sensor",
+          "humidifier_entity": "Humidifier Entity (Optional)",
+          "enable_light_control": "Enable Light Control?",
+          "light_entity": "Light Select Entity (Optional)",
+          "use_external_temp_sensor_description": "Choose yes to read temperature from an external sensor instead of the climate entity.",
+          "use_humidity_description": "Enable humidity-based automation and optional humidifier control.",
+          "enable_light_control_description": "Toggle the AC display light before/after commands and when the automation turns on/off."
         }
       },
       "temperature_options": {
