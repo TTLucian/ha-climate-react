@@ -50,6 +50,7 @@ from .const import (
     DEFAULT_ENABLED,
     DEFAULT_ENABLE_LIGHT_CONTROL,
     DEFAULT_LIGHT_BEHAVIOR,
+    DEFAULT_MIN_RUN_TIME,
     DEFAULT_TIMER_MINUTES,
     MODE_OFF,
     LIGHT_BEHAVIOR_ON,
@@ -244,6 +245,10 @@ class ClimateReactController:
             self._unsub_climate_availability()
         if self._timer_task:
             self._timer_task.cancel()
+            try:
+                await self._timer_task
+            except asyncio.CancelledError:
+                pass
             self._timer_task = None
         _LOGGER.info("Climate React controller shut down for %s", self.climate_entity)
 

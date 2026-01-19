@@ -309,7 +309,7 @@ class ClimateReactTimerNumber(ClimateReactBaseNumber):
         await super().async_will_remove_from_hass()
 
     def _on_timer_updated(self) -> None:
-        self._attr_native_value = self._controller.timer_minutes
+        # Don't set _attr_native_value - use property getter instead
         self.async_write_ha_state()
 
     @property
@@ -319,5 +319,3 @@ class ClimateReactTimerNumber(ClimateReactBaseNumber):
     async def async_set_native_value(self, value: float) -> None:
         """Set timer minutes and propagate to controller."""
         await self._controller.async_set_timer(value)
-        self._attr_native_value = self._controller.timer_minutes
-        self.async_write_ha_state()

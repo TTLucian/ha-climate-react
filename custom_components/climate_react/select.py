@@ -109,20 +109,48 @@ async def async_setup_entry(
     # Get initial climate state
     climate_state = hass.states.get(controller.climate_entity)
 
+    # Build candidates - if climate unavailable, we'll still add entities and they'll get enabled when climate becomes available
     if climate_state and climate_state.state not in (STATE_UNAVAILABLE, STATE_UNKNOWN):
-        # Add all supported entities immediately
         entities = _build_candidates(climate_state)
-        _LOGGER.info(
-            "Setting up %d select entities for climate %s",
-            len(entities),
-            controller.climate_entity,
-        )
-        async_add_entities(entities, True)
     else:
+        # Climate not available yet - create entities with fallback to detect all capabilities once available
+        # This ensures entities are registered even if climate entity is still loading
+        entities = [
+            ClimateReactLightBehaviorSelect(controller, entry) if controller.light_entity else None,
+            ClimateReactModeLowTempSelect(controller, entry),
+            ClimateReactModeHighTempSelect(controller, entry),
+            ClimateReactFanLowTempSelect(controller, entry),
+            ClimateReactFanHighTempSelect(controller, entry),
+            ClimateReactSwingLowTempSelect(controller, entry),
+            ClimateReactSwingHighTempSelect(controller, entry),
+            ClimateReactSwingHorizontalLowTempSelect(controller, entry),
+            ClimateReactSwingHorizontalHighTempSelect(controller, entry),
+        ]
+        # Add humidity entities if enabled
+        if entry.data.get(CONF_USE_HUMIDITY, False):
+            entities.extend([
+                ClimateReactModeHighHumiditySelect(controller, entry),
+                ClimateReactFanHighHumiditySelect(controller, entry),
+                ClimateReactSwingHighHumiditySelect(controller, entry),
+                ClimateReactSwingHorizontalHighHumiditySelect(controller, entry),
+            ])
+        # Filter out None values
+        entities = [e for e in entities if e is not None]
         _LOGGER.info(
-            "Climate entity %s unavailable at setup, will add entities when available",
+            "Climate entity %s unavailable at setup, created %d select entities (will become available when climate loads)",
             controller.climate_entity,
+            len(entities),
         )
+    
+    _LOGGER.info(
+        "Setting up %d select entities for climate %s",
+        len(entities),
+        controller.climate_entity,
+    )
+    async_add_entities(entities, True)
+
+    # Store tracking state for listener management
+    _state = {"unsub_climate": None}
 
     # Track climate entity changes to add new entities if capabilities expand
     async def _on_climate_change(event) -> None:
@@ -142,12 +170,12 @@ async def async_setup_entry(
             )
             async_add_entities(to_add, True)
 
-    unsub = async_track_state_change_event(
+    _state["unsub_climate"] = async_track_state_change_event(
         hass,
         [controller.climate_entity],
         _on_climate_change,
     )
-    entry.async_on_unload(unsub)
+    entry.async_on_unload(_state["unsub_climate"])
 
 
 class ClimateReactBaseSelect(SelectEntity):
