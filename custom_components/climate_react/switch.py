@@ -47,6 +47,7 @@ class ClimateReactSwitch(SwitchEntity):
         self._controller = controller
         self._entry = entry
         self._attr_unique_id = f"{entry.entry_id}_switch"
+        self._attr_icon = "mdi:thermostat-off"  # Default icon
         self._attr_device_info = {
             "identifiers": {(DOMAIN, entry.entry_id)},
             "name": controller.get_device_name(),
@@ -63,15 +64,22 @@ class ClimateReactSwitch(SwitchEntity):
     def icon(self) -> str:
         """Return the icon for the switch."""
         return "mdi:thermostat-auto" if self.is_on else "mdi:thermostat-off"
+    
+    async def async_update(self) -> None:
+        """Update the switch state and icon."""
+        # Sync _attr_icon with property value
+        self._attr_icon = self.icon
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn on Climate React."""
         await self._controller.async_enable()
+        self._attr_icon = "mdi:thermostat-auto"
         self.async_write_ha_state()
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Turn off Climate React."""
         await self._controller.async_disable()
+        self._attr_icon = "mdi:thermostat-off"
         self.async_write_ha_state()
 
     @property
