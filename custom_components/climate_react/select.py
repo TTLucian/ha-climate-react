@@ -29,8 +29,13 @@ from .const import (
     CONF_SWING_HORIZONTAL_HIGH_TEMP,
     CONF_SWING_HORIZONTAL_LOW_TEMP,
     CONF_USE_HUMIDITY,
+    CONF_LIGHT_BEHAVIOR,
+    CONF_LIGHT_ENTITY,
     DATA_COORDINATOR,
     DOMAIN,
+    LIGHT_BEHAVIOR_OFF,
+    LIGHT_BEHAVIOR_ON,
+    LIGHT_BEHAVIOR_UNCHANGED,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -53,6 +58,10 @@ async def async_setup_entry(
             return isinstance(supported, list) and len(supported) > 0
 
         selects: list[SelectEntity] = []
+
+        # Light behavior select (requires configured light entity)
+        if controller.light_entity:
+            selects.append(ClimateReactLightBehaviorSelect(controller, entry))
 
         if _supports("hvac_modes"):
             selects.extend(
@@ -431,3 +440,38 @@ class ClimateReactSwingHorizontalHighHumiditySelect(ClimateReactBaseSelect):
         self._attr_unique_id = f"{entry.entry_id}_swing_horizontal_high_humidity"
         config = {**entry.data, **entry.options}
         self._attr_current_option = config.get(CONF_SWING_HORIZONTAL_HIGH_HUMIDITY)
+
+
+class ClimateReactLightBehaviorSelect(ClimateReactBaseSelect):
+    """Select entity for light behavior when automation toggles."""
+
+    _attr_name = "Light Behavior"
+    _attr_icon = "mdi:lightbulb-auto"
+    _config_key = CONF_LIGHT_BEHAVIOR
+    _climate_attr = None
+
+    def __init__(self, controller: ClimateReactController, entry: ConfigEntry) -> None:
+        """Initialize the select."""
+        super().__init__(controller, entry)
+        self._attr_unique_id = f"{entry.entry_id}_light_behavior"
+        config = {**entry.data, **entry.options}
+        self._allowed_options = [
+            LIGHT_BEHAVIOR_ON,
+            LIGHT_BEHAVIOR_OFF,
+            LIGHT_BEHAVIOR_UNCHANGED,
+        ]
+        self._attr_current_option = config.get(CONF_LIGHT_BEHAVIOR, LIGHT_BEHAVIOR_UNCHANGED)
+
+    def _refresh_options(self, state) -> None:
+        """Light behavior select options are static."""
+        self._attr_options = self._allowed_options
+        config = {**self._entry.data, **self._entry.options}
+        config_option = config.get(self._config_key)
+        if config_option in self._allowed_options:
+            self._attr_current_option = config_option
+        else:
+            self._attr_current_option = LIGHT_BEHAVIOR_UNCHANGED
+
+    @property
+    def available(self) -> bool:
+        return self._controller.light_entity is not None

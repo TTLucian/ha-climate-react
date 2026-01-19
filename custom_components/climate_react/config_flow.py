@@ -31,6 +31,9 @@ from .const import (
     CONF_MODE_HIGH_TEMP,
     CONF_MODE_LOW_TEMP,
     CONF_MIN_RUN_TIME,
+    CONF_ENABLE_LIGHT_CONTROL,
+    CONF_LIGHT_ENTITY,
+    CONF_LIGHT_BEHAVIOR,
     CONF_SWING_HIGH_HUMIDITY,
     CONF_SWING_HIGH_TEMP,
     CONF_SWING_LOW_TEMP,
@@ -46,6 +49,8 @@ from .const import (
     DEFAULT_MODE_HIGH_TEMP,
     DEFAULT_MODE_LOW_TEMP,
     DEFAULT_SWING_MODE,
+    DEFAULT_ENABLE_LIGHT_CONTROL,
+    DEFAULT_LIGHT_BEHAVIOR,
     DEFAULT_USE_EXTERNAL_HUMIDITY_SENSOR,
     DEFAULT_USE_EXTERNAL_TEMP_SENSOR,
     DEFAULT_USE_HUMIDITY,
@@ -92,6 +97,24 @@ class ClimateReactConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     errors[CONF_HUMIDITY_SENSOR] = "entity_required"
                 elif not self.hass.states.get(humidity_sensor):
                     errors[CONF_HUMIDITY_SENSOR] = "entity_not_found"
+
+            # Validate light entity if light control enabled
+            enable_light = user_input.get(CONF_ENABLE_LIGHT_CONTROL, self.config_entry.data.get(CONF_ENABLE_LIGHT_CONTROL, DEFAULT_ENABLE_LIGHT_CONTROL))
+            if enable_light:
+                light_entity = user_input.get(CONF_LIGHT_ENTITY)
+                if not light_entity:
+                    errors[CONF_LIGHT_ENTITY] = "entity_required"
+                elif not self.hass.states.get(light_entity):
+                    errors[CONF_LIGHT_ENTITY] = "entity_not_found"
+
+            # Validate light entity if light control enabled
+            enable_light = user_input.get(CONF_ENABLE_LIGHT_CONTROL, DEFAULT_ENABLE_LIGHT_CONTROL)
+            if enable_light:
+                light_entity = user_input.get(CONF_LIGHT_ENTITY)
+                if not light_entity:
+                    errors[CONF_LIGHT_ENTITY] = "entity_required"
+                elif not self.hass.states.get(light_entity):
+                    errors[CONF_LIGHT_ENTITY] = "entity_not_found"
             
             if not errors:
                 # All validation passed, create entry with defaults
@@ -115,6 +138,9 @@ class ClimateReactConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 data[CONF_SWING_HIGH_TEMP] = DEFAULT_SWING_MODE
                 data[CONF_SWING_HIGH_HUMIDITY] = DEFAULT_SWING_MODE
                 data[CONF_ENABLED] = DEFAULT_ENABLED
+                data[CONF_ENABLE_LIGHT_CONTROL] = DEFAULT_ENABLE_LIGHT_CONTROL
+                data[CONF_LIGHT_ENTITY] = user_input.get(CONF_LIGHT_ENTITY)
+                data[CONF_LIGHT_BEHAVIOR] = DEFAULT_LIGHT_BEHAVIOR
                 
                 return self.async_create_entry(
                     title=f"Climate React - {climate_entity}",
@@ -159,6 +185,27 @@ class ClimateReactConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             ): selector.EntitySelector(
                 selector.EntitySelectorConfig(domain="humidifier")
             ),
+            vol.Optional(
+                CONF_ENABLE_LIGHT_CONTROL,
+                default=DEFAULT_ENABLE_LIGHT_CONTROL,
+                description={"suggested_value": DEFAULT_ENABLE_LIGHT_CONTROL}
+            ): selector.BooleanSelector(),
+            vol.Optional(
+                CONF_LIGHT_ENTITY,
+                description={"suggested_value": None}
+            ): selector.EntitySelector(
+                selector.EntitySelectorConfig(domain="select")
+            ),
+            vol.Optional(
+                CONF_LIGHT_BEHAVIOR,
+                default=DEFAULT_LIGHT_BEHAVIOR,
+                description={"suggested_value": DEFAULT_LIGHT_BEHAVIOR}
+            ): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=["on", "off", "unchanged"],
+                    translation_key="light_behavior",
+                )
+            ),
         }
 
         data_schema = vol.Schema(schema_dict)
@@ -181,7 +228,7 @@ class ClimateReactOptionsFlow(config_entries.OptionsFlow):
 
     def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
         """Initialize options flow."""
-        self.config_entry = config_entry
+        super().__init__(config_entry)
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
@@ -267,6 +314,28 @@ class ClimateReactOptionsFlow(config_entries.OptionsFlow):
                 description={"suggested_value": self.config_entry.data.get(CONF_HUMIDIFIER_ENTITY)}
             ): selector.EntitySelector(
                 selector.EntitySelectorConfig(domain="humidifier")
+            ),
+            vol.Optional(
+                CONF_ENABLE_LIGHT_CONTROL,
+                default=self.config_entry.data.get(CONF_ENABLE_LIGHT_CONTROL, DEFAULT_ENABLE_LIGHT_CONTROL),
+                description={"suggested_value": self.config_entry.data.get(CONF_ENABLE_LIGHT_CONTROL, DEFAULT_ENABLE_LIGHT_CONTROL)}
+            ): selector.BooleanSelector(),
+            vol.Optional(
+                CONF_LIGHT_ENTITY,
+                default=self.config_entry.data.get(CONF_LIGHT_ENTITY),
+                description={"suggested_value": self.config_entry.data.get(CONF_LIGHT_ENTITY)}
+            ): selector.EntitySelector(
+                selector.EntitySelectorConfig(domain="select")
+            ),
+            vol.Optional(
+                CONF_LIGHT_BEHAVIOR,
+                default=self.config_entry.data.get(CONF_LIGHT_BEHAVIOR, DEFAULT_LIGHT_BEHAVIOR),
+                description={"suggested_value": self.config_entry.data.get(CONF_LIGHT_BEHAVIOR, DEFAULT_LIGHT_BEHAVIOR)}
+            ): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=["on", "off", "unchanged"],
+                    translation_key="light_behavior",
+                )
             ),
         }
 

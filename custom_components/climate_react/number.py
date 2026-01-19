@@ -25,6 +25,7 @@ from .const import (
     CONF_TEMP_HIGH_TEMP,
     CONF_TEMP_LOW_TEMP,
     CONF_USE_HUMIDITY,
+    CONF_TIMER_MINUTES,
     DATA_COORDINATOR,
     DEFAULT_DELAY_BETWEEN_COMMANDS,
     DEFAULT_MIN_RUN_TIME,
@@ -49,6 +50,7 @@ async def async_setup_entry(
         ClimateReactTempHighTempNumber(controller, entry),
         ClimateReactDelayBetweenCommandsNumber(controller, entry),
         ClimateReactMinRunTimeNumber(controller, entry),
+        ClimateReactTimerNumber(controller, entry),
     ]
     
     if entry.data.get(CONF_USE_HUMIDITY, False):
@@ -275,3 +277,46 @@ class ClimateReactMinRunTimeNumber(ClimateReactBaseNumber):
         self._attr_unique_id = f"{entry.entry_id}_min_run_time"
         config = {**entry.data, **entry.options}
         self._attr_native_value = config.get(CONF_MIN_RUN_TIME, DEFAULT_MIN_RUN_TIME)
+
+
+class ClimateReactTimerNumber(ClimateReactBaseNumber):
+    """Number entity for the shutdown timer in minutes."""
+
+    _attr_name = "Timer"
+    _attr_icon = "mdi:timer-outline"
+    _attr_native_unit_of_measurement = "min"
+    _attr_native_min_value = 0
+    _attr_native_max_value = 720
+    _attr_native_step = 1
+    _config_key = CONF_TIMER_MINUTES
+
+    def __init__(self, controller: ClimateReactController, entry: ConfigEntry) -> None:
+        """Initialize the timer number."""
+        super().__init__(controller, entry)
+        self._attr_unique_id = f"{entry.entry_id}_timer_minutes"
+        self._attr_native_value = controller.timer_minutes
+        self._remove_listener = None
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        self._remove_listener = self._controller.add_timer_listener(self._on_timer_updated)
+
+    async def async_will_remove_from_hass(self) -> None:
+        if self._remove_listener:
+            self._remove_listener()
+            self._remove_listener = None
+        await super().async_will_remove_from_hass()
+
+    def _on_timer_updated(self) -> None:
+        self._attr_native_value = self._controller.timer_minutes
+        self.async_write_ha_state()
+
+    @property
+    def native_value(self) -> float | None:
+        return self._controller.timer_minutes
+
+    async def async_set_native_value(self, value: float) -> None:
+        """Set timer minutes and propagate to controller."""
+        await self._controller.async_set_timer(value)
+        self._attr_native_value = self._controller.timer_minutes
+        self.async_write_ha_state()

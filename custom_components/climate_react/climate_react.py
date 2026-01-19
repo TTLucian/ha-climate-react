@@ -1,9 +1,10 @@
 """Core Climate React controller."""
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import datetime, timedelta
-from typing import Any
+from typing import Any, Callable
 
 from homeassistant.components.climate import HVACMode
 from homeassistant.config_entries import ConfigEntry
@@ -24,6 +25,9 @@ from .const import (
     CONF_USE_EXTERNAL_HUMIDITY_SENSOR,
     CONF_USE_EXTERNAL_TEMP_SENSOR,
     CONF_USE_HUMIDITY,
+    CONF_ENABLE_LIGHT_CONTROL,
+    CONF_LIGHT_ENTITY,
+    CONF_LIGHT_BEHAVIOR,
     CONF_MAX_HUMIDITY,
     CONF_MAX_TEMP,
     CONF_MIN_HUMIDITY,
@@ -41,8 +45,16 @@ from .const import (
     CONF_TEMP_HIGH_HUMIDITY,
     CONF_TEMP_HIGH_TEMP,
     CONF_TEMP_LOW_TEMP,
+    CONF_TIMER_MINUTES,
     DEFAULT_DELAY_BETWEEN_COMMANDS,
     DEFAULT_ENABLED,
+    DEFAULT_ENABLE_LIGHT_CONTROL,
+    DEFAULT_LIGHT_BEHAVIOR,
+    DEFAULT_TIMER_MINUTES,
+    MODE_OFF,
+    LIGHT_BEHAVIOR_ON,
+    LIGHT_BEHAVIOR_OFF,
+    LIGHT_BEHAVIOR_UNCHANGED,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -67,6 +79,10 @@ class ClimateReactController:
         self._climate_max_temp: float | None = None
         self._last_mode_change_time: float | None = None
         self._last_set_hvac_mode: str | None = None
+        self._timer_minutes: int = int(self.config.get(CONF_TIMER_MINUTES, DEFAULT_TIMER_MINUTES))
+        self._timer_task: asyncio.Task | None = None
+        self._timer_listeners: list[Callable[[], None]] = []
+        self._light_control_enabled: bool = bool(self.config.get(CONF_ENABLE_LIGHT_CONTROL, DEFAULT_ENABLE_LIGHT_CONTROL))
 
     @property
     def config(self) -> dict[str, Any]:
@@ -108,6 +124,21 @@ class ClimateReactController:
         """Check if Climate React is enabled."""
         return self._enabled
 
+    @property
+    def light_control_enabled(self) -> bool:
+        """Check if light control is enabled."""
+        return self._light_control_enabled
+
+    @property
+    def light_entity(self) -> str | None:
+        """Light/select entity used for light control."""
+        return self.config.get(CONF_LIGHT_ENTITY)
+
+    @property
+    def light_behavior(self) -> str:
+        """Return configured light behavior."""
+        return self.config.get(CONF_LIGHT_BEHAVIOR, DEFAULT_LIGHT_BEHAVIOR)
+
     def get_device_name(self) -> str:
         """Get the device name for all entities."""
         climate_entity = self.climate_entity
@@ -118,6 +149,26 @@ class ClimateReactController:
         # Fallback: extract entity name from entity_id (e.g., climate.study -> Study)
         entity_name = climate_entity.split(".")[-1].replace("_", " ").title()
         return f"Climate React {entity_name}"
+
+    @property
+    def timer_minutes(self) -> int:
+        """Return remaining timer minutes."""
+        return self._timer_minutes
+
+    def add_timer_listener(self, callback: Callable[[], None]) -> Callable[[], None]:
+        """Register a callback to be notified on timer updates."""
+        self._timer_listeners.append(callback)
+
+        def _remove() -> None:
+            if callback in self._timer_listeners:
+                self._timer_listeners.remove(callback)
+
+        return _remove
+
+    def _notify_timer_listeners(self) -> None:
+        """Notify timer listeners of an update."""
+        for callback in list(self._timer_listeners):
+            callback()
 
     def _can_change_mode(self) -> bool:
         """Check if minimum run time has elapsed since last mode change."""
@@ -163,6 +214,7 @@ class ClimateReactController:
 
         # Initial state evaluation
         await self._async_evaluate_state()
+        await self._async_start_timer_if_needed()
 
         _LOGGER.info(
             "Climate React controller initialized for %s (temp: %s, humidity: %s)",
@@ -187,12 +239,27 @@ class ClimateReactController:
         """Enable Climate React."""
         self._enabled = True
         await self._async_evaluate_state()
+        await self._async_apply_light_behavior(enabled=True)
         _LOGGER.info("Climate React enabled for %s", self.climate_entity)
 
     async def async_disable(self) -> None:
         """Disable Climate React."""
         self._enabled = False
+        if self._timer_minutes > 0 and self._is_climate_off():
+            await self.async_set_timer(0)
+        await self._async_apply_light_behavior(enabled=False)
         _LOGGER.info("Climate React disabled for %s", self.climate_entity)
+
+    async def async_set_light_control_enabled(self, enabled: bool) -> None:
+        """Enable or disable light control and persist the choice."""
+        self._light_control_enabled = enabled
+        new_options = {**self.entry.options}
+        new_options[CONF_ENABLE_LIGHT_CONTROL] = enabled
+        self.hass.config_entries.async_update_entry(self.entry, options=new_options)
+        _LOGGER.info("Light control %s for %s", "enabled" if enabled else "disabled", self.climate_entity)
+
+        # Re-apply behavior to enforce desired light state immediately
+        await self._async_apply_light_behavior(enabled=self._enabled)
 
     async def async_update_thresholds(self, data: dict[str, Any]) -> None:
         """Update thresholds dynamically."""
@@ -308,11 +375,16 @@ class ClimateReactController:
     @callback
     async def _async_climate_state_changed(self, event: Event) -> None:
         """Detect manual mode changes outside of automation."""
-        if not self._enabled:
-            return
-
         new_state: State = event.data.get("new_state")
         if not new_state or new_state.state in (STATE_UNAVAILABLE, STATE_UNKNOWN):
+            return
+
+        # If automation is disabled and a timer is running, reset when climate is off
+        if not self._enabled and self._timer_minutes > 0 and self._is_climate_off_state(new_state):
+            await self.async_set_timer(0)
+            return
+
+        if not self._enabled:
             return
 
         current_mode = new_state.state
@@ -328,6 +400,7 @@ class ClimateReactController:
             )
             self._enabled = False
             self._last_set_hvac_mode = None
+            await self._async_apply_light_behavior(enabled=False)
 
     @callback
     async def _async_humidity_changed(self, event: Event) -> None:
@@ -535,6 +608,12 @@ class ClimateReactController:
         climate_state = self.hass.states.get(self.climate_entity)
         config = self.config
 
+        # Skip ancillary calls (fan/swing/temperature) when HVAC is off unless we are turning it on now.
+        current_state = climate_state.state if climate_state else None
+        turning_off = hvac_mode == MODE_OFF
+        staying_off = hvac_mode is None and current_state == MODE_OFF
+        allow_auxiliary_calls = not (turning_off or staying_off)
+
         def _clamp(option: str | None, supported_attr: str) -> str | None:
             if not option:
                 return None
@@ -552,8 +631,16 @@ class ClimateReactController:
         swing_horizontal_mode = _clamp(swing_horizontal_mode, "swing_horizontal_modes")
 
         # Get configured delay in milliseconds, convert to seconds
-        import asyncio
         delay_seconds = config.get(CONF_DELAY_BETWEEN_COMMANDS, DEFAULT_DELAY_BETWEEN_COMMANDS) / 1000.0
+
+        # Optionally toggle display light off before commands (mirrors Node-RED flow) and back on after.
+        light_entity = self.light_entity if self._light_control_enabled else None
+        light_behavior = self.light_behavior
+        toggle_light = light_entity and light_behavior != LIGHT_BEHAVIOR_UNCHANGED
+        if toggle_light:
+            await self._async_set_light(light_entity, "off")
+            if delay_seconds > 0:
+                await asyncio.sleep(delay_seconds)
 
         # Set HVAC mode
         if hvac_mode:
@@ -569,7 +656,7 @@ class ClimateReactController:
                 await asyncio.sleep(delay_seconds)
 
         # Set temperature if provided
-        if target_temp is not None and climate_state:
+        if allow_auxiliary_calls and target_temp is not None and climate_state:
             await self.hass.services.async_call(
                 "climate",
                 "set_temperature",
@@ -580,7 +667,7 @@ class ClimateReactController:
                 await asyncio.sleep(delay_seconds)
 
         # Set fan mode if supported and specified
-        if fan_mode and climate_state and climate_state.attributes.get("fan_modes"):
+        if allow_auxiliary_calls and fan_mode and climate_state and climate_state.attributes.get("fan_modes"):
             await self.hass.services.async_call(
                 "climate",
                 "set_fan_mode",
@@ -591,7 +678,7 @@ class ClimateReactController:
                 await asyncio.sleep(delay_seconds)
 
         # Set swing mode if supported and specified
-        if swing_mode and climate_state and climate_state.attributes.get("swing_modes"):
+        if allow_auxiliary_calls and swing_mode and climate_state and climate_state.attributes.get("swing_modes"):
             await self.hass.services.async_call(
                 "climate",
                 "set_swing_mode",
@@ -603,7 +690,8 @@ class ClimateReactController:
 
         # Set horizontal swing mode if supported and service available
         if (
-            swing_horizontal_mode
+            allow_auxiliary_calls
+            and swing_horizontal_mode
             and climate_state
             and climate_state.attributes.get("swing_horizontal_modes")
         ):
@@ -626,3 +714,126 @@ class ClimateReactController:
                         swing_horizontal_mode,
                     )
                     self._warned_horizontal_service_missing = True
+
+        if toggle_light:
+            await self._async_set_light(light_entity, "on")
+            if delay_seconds > 0:
+                await asyncio.sleep(delay_seconds)
+
+    async def _async_set_light(self, entity_id: str, option: str) -> None:
+        """Set a select-based light control entity to on/off if available."""
+        if not self.hass.services.has_service("select", "select_option"):
+            return
+        try:
+            await self.hass.services.async_call(
+                "select",
+                "select_option",
+                {"entity_id": entity_id, "option": option},
+                blocking=True,
+            )
+        except Exception as exc:  # noqa: BLE001
+            _LOGGER.debug("Failed to set light %s to %s: %s", entity_id, option, exc)
+
+    async def async_set_timer(self, minutes: float) -> None:
+        """Set or reset the minute countdown timer."""
+        new_minutes = max(0, int(minutes))
+
+        # If timer requested while both automation and climate are off, reset to zero
+        if new_minutes > 0 and not self._enabled and self._is_climate_off():
+            new_minutes = 0
+
+        # Cancel existing task
+        if self._timer_task:
+            self._timer_task.cancel()
+            self._timer_task = None
+
+        self._timer_minutes = new_minutes
+        await self._async_persist_timer()
+        self._notify_timer_listeners()
+
+        if self._timer_minutes > 0:
+            self._timer_task = self.hass.loop.create_task(self._async_timer_loop())
+            _LOGGER.info("Timer started for %s: %d minutes", self.climate_entity, self._timer_minutes)
+        else:
+            _LOGGER.debug("Timer cleared for %s", self.climate_entity)
+
+    async def _async_start_timer_if_needed(self) -> None:
+        """Restart timer loop on setup if there is remaining time."""
+        if self._timer_minutes > 0 and not self._timer_task:
+            self._timer_task = self.hass.loop.create_task(self._async_timer_loop())
+
+    async def _async_timer_loop(self) -> None:
+        """Countdown timer loop."""
+        try:
+            while self._timer_minutes > 0:
+                await asyncio.sleep(60)
+                self._timer_minutes -= 1
+                await self._async_persist_timer()
+                self._notify_timer_listeners()
+
+                if self._timer_minutes == 0:
+                    await self._async_handle_timer_expired()
+                    break
+        except asyncio.CancelledError:
+            _LOGGER.debug("Timer task cancelled for %s", self.climate_entity)
+        finally:
+            self._timer_task = None
+
+    async def _async_handle_timer_expired(self) -> None:
+        """Handle actions when timer reaches zero."""
+        _LOGGER.info("Timer expired for %s", self.climate_entity)
+
+        if self._enabled:
+            await self.async_disable()
+        else:
+            # Turn off climate if not already off
+            climate_state = self.hass.states.get(self.climate_entity)
+            if climate_state and not self._is_climate_off_state(climate_state):
+                await self.hass.services.async_call(
+                    "climate",
+                    "turn_off",
+                    {"entity_id": self.climate_entity},
+                    blocking=True,
+                )
+
+        self._timer_minutes = 0
+        await self._async_persist_timer()
+        self._notify_timer_listeners()
+        await self._async_apply_light_behavior(enabled=False)
+
+    async def _async_persist_timer(self) -> None:
+        """Persist timer value to config entry options."""
+        new_options = {**self.entry.options}
+        new_options[CONF_TIMER_MINUTES] = self._timer_minutes
+        self.hass.config_entries.async_update_entry(self.entry, options=new_options)
+
+    async def _async_apply_light_behavior(self, enabled: bool) -> None:
+        """Apply configured light behavior when automation toggles."""
+        if not self._light_control_enabled:
+            return
+        light_entity = self.light_entity
+        if not light_entity:
+            return
+        behavior = self.light_behavior
+        if behavior == LIGHT_BEHAVIOR_UNCHANGED:
+            return
+
+        desired = None
+        if behavior == LIGHT_BEHAVIOR_ON:
+            desired = "on" if enabled else "off"
+        elif behavior == LIGHT_BEHAVIOR_OFF:
+            desired = "off" if enabled else "on"
+
+        if desired:
+            await self._async_set_light(light_entity, desired)
+
+    def _is_climate_off(self) -> bool:
+        """Return True if climate entity is currently off."""
+        state = self.hass.states.get(self.climate_entity)
+        return self._is_climate_off_state(state)
+
+    @staticmethod
+    def _is_climate_off_state(state: State | None) -> bool:
+        if not state:
+            return True
+        return state.state == MODE_OFF or state.state == "off"
