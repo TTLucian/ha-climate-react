@@ -81,6 +81,7 @@ class ClimateReactConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     VERSION = 1
     _step1_data: dict[str, Any] | None = None
+    _step2_data: dict[str, Any] | None = None
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
@@ -184,6 +185,14 @@ class ClimateReactConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     errors[CONF_LIGHT_ENTITY] = "invalid_domain"
 
             if not errors:
+                # Check if light entity is a select type - if so, route to light_options step
+                light_entity = user_input.get(CONF_LIGHT_ENTITY)
+                if light_entity and light_entity.startswith("select."):
+                    # Store step 2 data and move to step 3
+                    self._step2_data = user_input
+                    return await self.async_step_light_options()
+                
+                # Otherwise, create entry
                 climate_entity = self._step1_data[CONF_CLIMATE_ENTITY]
                 await self.async_set_unique_id(climate_entity)
                 self._abort_if_unique_id_configured()
@@ -219,8 +228,8 @@ class ClimateReactConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 data[CONF_ENABLED] = DEFAULT_ENABLED
                 data[CONF_ENABLE_LIGHT_CONTROL] = data.get(CONF_ENABLE_LIGHT_CONTROL, DEFAULT_ENABLE_LIGHT_CONTROL)
                 data[CONF_LIGHT_ENTITY] = user_input.get(CONF_LIGHT_ENTITY)
-                data[CONF_LIGHT_SELECT_ON_OPTION] = user_input.get(CONF_LIGHT_SELECT_ON_OPTION, DEFAULT_LIGHT_SELECT_ON_OPTION)
-                data[CONF_LIGHT_SELECT_OFF_OPTION] = user_input.get(CONF_LIGHT_SELECT_OFF_OPTION, DEFAULT_LIGHT_SELECT_OFF_OPTION)
+                data[CONF_LIGHT_SELECT_ON_OPTION] = DEFAULT_LIGHT_SELECT_ON_OPTION
+                data[CONF_LIGHT_SELECT_OFF_OPTION] = DEFAULT_LIGHT_SELECT_OFF_OPTION
 
                 # Generate title matching device name logic
                 state = self.hass.states.get(climate_entity)
@@ -266,18 +275,96 @@ class ClimateReactConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             schema_dict[vol.Required(CONF_LIGHT_ENTITY)] = selector.EntitySelector(
                 selector.EntitySelectorConfig(domain=["light", "switch", "select"])
             )
-            # Add select option fields with defaults
-            schema_dict[vol.Optional(
-                CONF_LIGHT_SELECT_ON_OPTION,
-                default=DEFAULT_LIGHT_SELECT_ON_OPTION
-            )] = selector.TextSelector()
-            schema_dict[vol.Optional(
-                CONF_LIGHT_SELECT_OFF_OPTION,
-                default=DEFAULT_LIGHT_SELECT_OFF_OPTION
-            )] = selector.TextSelector()
 
         return self.async_show_form(
             step_id="sensors", data_schema=vol.Schema(schema_dict), errors=errors
+        )
+
+    async def async_step_light_options(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.FlowResult:
+        """Handle light select entity options step."""
+        if not self._step2_data:
+            return await self.async_step_sensors()
+
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            if not errors:
+                climate_entity = self._step1_data[CONF_CLIMATE_ENTITY]
+                await self.async_set_unique_id(climate_entity)
+                self._abort_if_unique_id_configured()
+
+                data = {**self._step1_data}
+                data[CONF_TEMPERATURE_SENSOR] = self._step2_data.get(CONF_TEMPERATURE_SENSOR) or None
+                data[CONF_HUMIDITY_SENSOR] = self._step2_data.get(CONF_HUMIDITY_SENSOR) or None
+                data[CONF_HUMIDIFIER_ENTITY] = self._step2_data.get(CONF_HUMIDIFIER_ENTITY) or None
+
+                # Prepare defaults
+                data[CONF_MIN_TEMP] = DEFAULT_MIN_TEMP
+                data[CONF_MAX_TEMP] = DEFAULT_MAX_TEMP
+                data[CONF_MIN_HUMIDITY] = DEFAULT_MIN_HUMIDITY
+                data[CONF_MAX_HUMIDITY] = DEFAULT_MAX_HUMIDITY
+                data[CONF_MIN_RUN_TIME] = DEFAULT_MIN_RUN_TIME
+                data[CONF_MODE_LOW_TEMP] = DEFAULT_MODE_LOW_TEMP
+                data[CONF_MODE_HIGH_TEMP] = DEFAULT_MODE_HIGH_TEMP
+                data[CONF_MODE_HIGH_HUMIDITY] = DEFAULT_MODE_HIGH_HUMIDITY
+                data[CONF_FAN_LOW_TEMP] = DEFAULT_FAN_MODE
+                data[CONF_FAN_HIGH_TEMP] = DEFAULT_FAN_MODE
+                data[CONF_FAN_HIGH_HUMIDITY] = DEFAULT_FAN_MODE
+                data[CONF_SWING_LOW_TEMP] = DEFAULT_SWING_MODE
+                data[CONF_SWING_HIGH_TEMP] = DEFAULT_SWING_MODE
+                data[CONF_SWING_HIGH_HUMIDITY] = DEFAULT_SWING_MODE
+                data[CONF_SWING_HORIZONTAL_LOW_TEMP] = DEFAULT_SWING_MODE
+                data[CONF_SWING_HORIZONTAL_HIGH_TEMP] = DEFAULT_SWING_MODE
+                data[CONF_SWING_HORIZONTAL_HIGH_HUMIDITY] = DEFAULT_SWING_MODE
+                data[CONF_TEMP_LOW_TEMP] = DEFAULT_TEMP_LOW_TEMP
+                data[CONF_TEMP_HIGH_TEMP] = DEFAULT_TEMP_HIGH_TEMP
+                data[CONF_TEMP_HIGH_HUMIDITY] = DEFAULT_TEMP_HIGH_HUMIDITY
+                data[CONF_DELAY_BETWEEN_COMMANDS] = DEFAULT_DELAY_BETWEEN_COMMANDS
+                data[CONF_TIMER_MINUTES] = DEFAULT_TIMER_MINUTES
+                data[CONF_ENABLED] = DEFAULT_ENABLED
+                data[CONF_ENABLE_LIGHT_CONTROL] = data.get(CONF_ENABLE_LIGHT_CONTROL, DEFAULT_ENABLE_LIGHT_CONTROL)
+                data[CONF_LIGHT_ENTITY] = self._step2_data.get(CONF_LIGHT_ENTITY)
+                data[CONF_LIGHT_SELECT_ON_OPTION] = user_input.get(CONF_LIGHT_SELECT_ON_OPTION, DEFAULT_LIGHT_SELECT_ON_OPTION)
+                data[CONF_LIGHT_SELECT_OFF_OPTION] = user_input.get(CONF_LIGHT_SELECT_OFF_OPTION, DEFAULT_LIGHT_SELECT_OFF_OPTION)
+
+                # Generate title matching device name logic
+                state = self.hass.states.get(climate_entity)
+                if state:
+                    friendly_name = state.attributes.get("friendly_name")
+                    if friendly_name:
+                        # If friendly_name is just the entity_id, extract the name part
+                        if friendly_name.startswith("climate."):
+                            entity_name = friendly_name.split(".")[-1].replace("_", " ").title()
+                            title = f"Climate React {entity_name}"
+                        else:
+                            title = f"Climate React {friendly_name}"
+                    else:
+                        entity_name = climate_entity.split(".")[-1].replace("_", " ").title()
+                        title = f"Climate React {entity_name}"
+                else:
+                    entity_name = climate_entity.split(".")[-1].replace("_", " ").title()
+                    title = f"Climate React {entity_name}"
+
+                return self.async_create_entry(
+                    title=title,
+                    data=data,
+                )
+
+        schema_dict = {
+            vol.Optional(
+                CONF_LIGHT_SELECT_ON_OPTION,
+                default=DEFAULT_LIGHT_SELECT_ON_OPTION
+            ): selector.TextSelector(),
+            vol.Optional(
+                CONF_LIGHT_SELECT_OFF_OPTION,
+                default=DEFAULT_LIGHT_SELECT_OFF_OPTION
+            ): selector.TextSelector(),
+        }
+
+        return self.async_show_form(
+            step_id="light_options", data_schema=vol.Schema(schema_dict), errors=errors
         )
 
     async def _async_create_entry_with_defaults(self, step1_data: dict[str, Any]) -> config_entries.FlowResult:

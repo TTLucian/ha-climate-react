@@ -22,9 +22,15 @@
           "temperature_sensor": "Temperature Sensor",
           "humidity_sensor": "Humidity Sensor",
           "humidifier_entity": "Humidifier Entity (Optional)",
-          "light_entity": "Light Entity (Required when light control is enabled)",
-          "light_select_on_option": "Select Entity 'On' Option (for select entities only)",
-          "light_select_off_option": "Select Entity 'Off' Option (for select entities only)"
+          "light_entity": "Light Entity (Required when light control is enabled)"
+        }
+      },
+      "light_options": {
+        "title": "Light Select Options",
+        "description": "Configure the values for the select entity when turning the light on and off.",
+        "data": {
+          "light_select_on_option": "Light 'On' Option Value",
+          "light_select_off_option": "Light 'Off' Option Value"
         }
       }
     },
@@ -60,9 +66,7 @@
           "temperature_sensor": "Temperature Sensor",
           "humidity_sensor": "Humidity Sensor",
           "humidifier_entity": "Humidifier Entity (Optional)",
-          "light_entity": "Light Entity (Required when light control is enabled)",
-          "light_select_on_option": "Select Entity 'On' Option (for select entities only)",
-          "light_select_off_option": "Select Entity 'Off' Option (for select entities only)"
+          "light_entity": "Light Entity (Required when light control is enabled)"
         }
       }
     },

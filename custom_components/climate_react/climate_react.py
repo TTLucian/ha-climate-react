@@ -242,6 +242,9 @@ class ClimateReactController:
             self._unsub_climate()
         if self._unsub_climate_availability:
             self._unsub_climate_availability()
+        if self._timer_task:
+            self._timer_task.cancel()
+            self._timer_task = None
         _LOGGER.info("Climate React controller shut down for %s", self.climate_entity)
 
     async def async_enable(self) -> None:
@@ -371,10 +374,10 @@ class ClimateReactController:
                 temperature = new_state.attributes.get("current_temperature")
                 if temperature is None:
                     return
+                temperature = float(temperature)
             else:
                 temperature = float(new_state.state)
             
-            temperature = float(temperature)
             self._last_temp = temperature
             _LOGGER.debug("Temperature changed to %.1f°C for %s", temperature, self.climate_entity)
             await self._async_handle_temperature_threshold(temperature)
@@ -447,9 +450,10 @@ class ClimateReactController:
                 if not use_external_temp and temp_state.entity_id == self.climate_entity:
                     temperature = temp_state.attributes.get("current_temperature")
                     if temperature is not None:
-                        self._last_temp = float(temperature)
+                        temperature = float(temperature)
+                        self._last_temp = temperature
                         if self._enabled:
-                            await self._async_handle_temperature_threshold(float(temperature))
+                            await self._async_handle_temperature_threshold(temperature)
                 else:
                     temperature = float(temp_state.state)
                     self._last_temp = temperature
@@ -468,9 +472,10 @@ class ClimateReactController:
                     if not use_external_humidity and humidity_state.entity_id == self.climate_entity:
                         humidity = humidity_state.attributes.get("current_humidity")
                         if humidity is not None:
-                            self._last_humidity = float(humidity)
+                            humidity = float(humidity)
+                            self._last_humidity = humidity
                             if self._enabled:
-                                await self._async_handle_humidity_threshold(float(humidity))
+                                await self._async_handle_humidity_threshold(humidity)
                     else:
                         humidity = float(humidity_state.state)
                         self._last_humidity = humidity
@@ -536,6 +541,13 @@ class ClimateReactController:
 
     async def _async_handle_humidity_threshold(self, humidity: float) -> None:
         """Handle humidity threshold logic."""
+        if not self._can_change_mode():
+            _LOGGER.debug(
+                "Humidity threshold triggered but minimum run time not elapsed for %s",
+                self.climate_entity
+            )
+            return
+        
         config = self.config
         min_humidity = config.get(CONF_MIN_HUMIDITY)
         max_humidity = config.get(CONF_MAX_HUMIDITY)
@@ -547,9 +559,12 @@ class ClimateReactController:
                     "Humidity %.1f%% < %.1f%% (min) for %s - turning on humidifier %s",
                     humidity, min_humidity, self.climate_entity, self.humidifier_entity
                 )
+                # Determine the correct domain based on entity_id
+                domain = self.humidifier_entity.split(".")[0]
+                service = "turn_on"
                 await self.hass.services.async_call(
-                    "humidifier",
-                    "turn_on",
+                    domain,
+                    service,
                     {"entity_id": self.humidifier_entity},
                     blocking=True,
                 )
@@ -566,9 +581,12 @@ class ClimateReactController:
                     "Humidity %.1f%% > %.1f%% (max) - turning off humidifier %s",
                     humidity, max_humidity, self.humidifier_entity
                 )
+                # Determine the correct domain based on entity_id
+                domain = self.humidifier_entity.split(".")[0]
+                service = "turn_off"
                 await self.hass.services.async_call(
-                    "humidifier",
-                    "turn_off",
+                    domain,
+                    service,
                     {"entity_id": self.humidifier_entity},
                     blocking=True,
                 )
