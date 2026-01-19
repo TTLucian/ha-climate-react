@@ -147,9 +147,14 @@ class ClimateReactController:
         """Get the device name for all entities."""
         climate_entity = self.climate_entity
         state = self.hass.states.get(climate_entity)
-        if state and state.attributes.get("friendly_name"):
-            friendly_name = state.attributes["friendly_name"]
-            return f"Climate React {friendly_name}"
+        if state:
+            friendly_name = state.attributes.get("friendly_name")
+            if friendly_name:
+                # If friendly_name is just the entity_id, extract the name part
+                if friendly_name.startswith("climate."):
+                    entity_name = friendly_name.split(".")[-1].replace("_", " ").title()
+                    return f"Climate React {entity_name}"
+                return f"Climate React {friendly_name}"
         # Fallback: extract entity name from entity_id (e.g., climate.study -> Study)
         entity_name = climate_entity.split(".")[-1].replace("_", " ").title()
         return f"Climate React {entity_name}"
@@ -376,7 +381,6 @@ class ClimateReactController:
         except (ValueError, TypeError) as err:
             _LOGGER.warning("Invalid temperature state: %s (%s)", new_state.state, err)
 
-    @callback
     async def _async_climate_state_changed(self, event: Event) -> None:
         """Detect manual mode changes outside of automation."""
         new_state: State = event.data.get("new_state")
@@ -406,7 +410,6 @@ class ClimateReactController:
             self._last_set_hvac_mode = None
             await self._async_apply_light_behavior(enabled=False)
 
-    @callback
     async def _async_humidity_changed(self, event: Event) -> None:
         """Handle humidity sensor state change."""
         if not self._enabled:

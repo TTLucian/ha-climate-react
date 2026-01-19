@@ -288,6 +288,7 @@ class ClimateReactTimerNumber(ClimateReactBaseNumber):
     _attr_native_min_value = 0
     _attr_native_max_value = 720
     _attr_native_step = 1
+    _attr_mode = "slider"
     _config_key = CONF_TIMER_MINUTES
 
     def __init__(self, controller: ClimateReactController, entry: ConfigEntry) -> None:

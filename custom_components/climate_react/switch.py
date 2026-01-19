@@ -41,7 +41,6 @@ class ClimateReactSwitch(SwitchEntity):
 
     _attr_has_entity_name = True
     _attr_name = "Climate React"
-    _attr_icon = "mdi:thermostat-off"
 
     def __init__(self, controller: ClimateReactController, entry: ConfigEntry) -> None:
         """Initialize the switch."""
