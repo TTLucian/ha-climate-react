@@ -721,16 +721,47 @@ class ClimateReactController:
                 await asyncio.sleep(delay_seconds)
 
     async def _async_set_light(self, entity_id: str, option: str) -> None:
-        """Set a select-based light control entity to on/off if available."""
-        if not self.hass.services.has_service("select", "select_option"):
+        """Set light control entity (light, switch, or select) to on/off.
+        
+        For select entities, uses configured on/off option values from config.
+        """
+        domain = entity_id.split(".")[0] if "." in entity_id else None
+        if not domain:
+            _LOGGER.warning("Invalid entity_id format: %s", entity_id)
             return
+
         try:
-            await self.hass.services.async_call(
-                "select",
-                "select_option",
-                {"entity_id": entity_id, "option": option},
-                blocking=True,
-            )
+            if domain == "select":
+                # For select entities, map on/off to configured select options
+                from .const import (
+                    CONF_LIGHT_SELECT_ON_OPTION,
+                    CONF_LIGHT_SELECT_OFF_OPTION,
+                    DEFAULT_LIGHT_SELECT_ON_OPTION,
+                    DEFAULT_LIGHT_SELECT_OFF_OPTION,
+                )
+                
+                if option == "on":
+                    select_option = self.config.get(CONF_LIGHT_SELECT_ON_OPTION, DEFAULT_LIGHT_SELECT_ON_OPTION)
+                else:
+                    select_option = self.config.get(CONF_LIGHT_SELECT_OFF_OPTION, DEFAULT_LIGHT_SELECT_OFF_OPTION)
+                
+                await self.hass.services.async_call(
+                    "select",
+                    "select_option",
+                    {"entity_id": entity_id, "option": select_option},
+                    blocking=True,
+                )
+            elif domain in ("light", "switch"):
+                # For light/switch entities, use turn_on/turn_off services
+                service = "turn_on" if option == "on" else "turn_off"
+                await self.hass.services.async_call(
+                    domain,
+                    service,
+                    {"entity_id": entity_id},
+                    blocking=True,
+                )
+            else:
+                _LOGGER.warning("Unsupported light control entity domain: %s", domain)
         except Exception as exc:  # noqa: BLE001
             _LOGGER.debug("Failed to set light %s to %s: %s", entity_id, option, exc)
 

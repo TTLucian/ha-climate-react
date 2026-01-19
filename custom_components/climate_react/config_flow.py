@@ -33,6 +33,8 @@ from .const import (
     CONF_MIN_RUN_TIME,
     CONF_ENABLE_LIGHT_CONTROL,
     CONF_LIGHT_ENTITY,
+    CONF_LIGHT_SELECT_ON_OPTION,
+    CONF_LIGHT_SELECT_OFF_OPTION,
     CONF_SWING_HIGH_HUMIDITY,
     CONF_SWING_HIGH_TEMP,
     CONF_SWING_LOW_TEMP,
@@ -48,6 +50,8 @@ from .const import (
     DEFAULT_MODE_HIGH_TEMP,
     DEFAULT_MODE_LOW_TEMP,
     DEFAULT_SWING_MODE,
+    DEFAULT_LIGHT_SELECT_ON_OPTION,
+    DEFAULT_LIGHT_SELECT_OFF_OPTION,
     DEFAULT_ENABLE_LIGHT_CONTROL,
     DEFAULT_USE_EXTERNAL_HUMIDITY_SENSOR,
     DEFAULT_USE_EXTERNAL_TEMP_SENSOR,
@@ -181,6 +185,8 @@ class ClimateReactConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 data[CONF_ENABLED] = DEFAULT_ENABLED
                 data[CONF_ENABLE_LIGHT_CONTROL] = data.get(CONF_ENABLE_LIGHT_CONTROL, DEFAULT_ENABLE_LIGHT_CONTROL)
                 data[CONF_LIGHT_ENTITY] = user_input.get(CONF_LIGHT_ENTITY)
+                data[CONF_LIGHT_SELECT_ON_OPTION] = user_input.get(CONF_LIGHT_SELECT_ON_OPTION, DEFAULT_LIGHT_SELECT_ON_OPTION)
+                data[CONF_LIGHT_SELECT_OFF_OPTION] = user_input.get(CONF_LIGHT_SELECT_OFF_OPTION, DEFAULT_LIGHT_SELECT_OFF_OPTION)
 
                 return self.async_create_entry(
                     title=f"Climate React - {climate_entity}",
@@ -205,9 +211,18 @@ class ClimateReactConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             )
 
         if self._step1_data.get(CONF_ENABLE_LIGHT_CONTROL, DEFAULT_ENABLE_LIGHT_CONTROL):
-                schema_dict[vol.Required(CONF_LIGHT_ENTITY)] = selector.EntitySelector(
-                selector.EntitySelectorConfig(domain=None)
+            schema_dict[vol.Required(CONF_LIGHT_ENTITY)] = selector.EntitySelector(
+                selector.EntitySelectorConfig(domain=["light", "switch", "select"])
             )
+            # Add select option fields with defaults
+            schema_dict[vol.Optional(
+                CONF_LIGHT_SELECT_ON_OPTION,
+                default=DEFAULT_LIGHT_SELECT_ON_OPTION
+            )] = selector.TextSelector()
+            schema_dict[vol.Optional(
+                CONF_LIGHT_SELECT_OFF_OPTION,
+                default=DEFAULT_LIGHT_SELECT_OFF_OPTION
+            )] = selector.TextSelector()
 
         return self.async_show_form(
             step_id="sensors", data_schema=vol.Schema(schema_dict), errors=errors
@@ -332,6 +347,8 @@ class ClimateReactOptionsFlow(config_entries.OptionsFlow):
                 data[CONF_HUMIDITY_SENSOR] = user_input.get(CONF_HUMIDITY_SENSOR)
                 data[CONF_HUMIDIFIER_ENTITY] = user_input.get(CONF_HUMIDIFIER_ENTITY)
                 data[CONF_LIGHT_ENTITY] = user_input.get(CONF_LIGHT_ENTITY)
+                data[CONF_LIGHT_SELECT_ON_OPTION] = user_input.get(CONF_LIGHT_SELECT_ON_OPTION, DEFAULT_LIGHT_SELECT_ON_OPTION)
+                data[CONF_LIGHT_SELECT_OFF_OPTION] = user_input.get(CONF_LIGHT_SELECT_OFF_OPTION, DEFAULT_LIGHT_SELECT_OFF_OPTION)
 
                 self.hass.config_entries.async_update_entry(
                     self.config_entry,
@@ -342,24 +359,51 @@ class ClimateReactOptionsFlow(config_entries.OptionsFlow):
         schema_dict: dict[Any, Any] = {}
 
         if use_external_temp:
-            schema_dict[vol.Required(CONF_TEMPERATURE_SENSOR)] = selector.EntitySelector(
+            current_temp = self.config_entry.data.get(CONF_TEMPERATURE_SENSOR)
+            schema_dict[vol.Required(
+                CONF_TEMPERATURE_SENSOR,
+                default=current_temp
+            )] = selector.EntitySelector(
                 selector.EntitySelectorConfig(domain="sensor", device_class="temperature")
             )
 
         if use_humidity and use_external_humidity:
-            schema_dict[vol.Required(CONF_HUMIDITY_SENSOR)] = selector.EntitySelector(
+            current_humidity = self.config_entry.data.get(CONF_HUMIDITY_SENSOR)
+            schema_dict[vol.Required(
+                CONF_HUMIDITY_SENSOR,
+                default=current_humidity
+            )] = selector.EntitySelector(
                 selector.EntitySelectorConfig(domain="sensor", device_class="humidity")
             )
 
         if use_humidity:
-            schema_dict[vol.Optional(CONF_HUMIDIFIER_ENTITY)] = selector.EntitySelector(
+            current_humidifier = self.config_entry.data.get(CONF_HUMIDIFIER_ENTITY)
+            schema_dict[vol.Optional(
+                CONF_HUMIDIFIER_ENTITY,
+                default=current_humidifier
+            )] = selector.EntitySelector(
                 selector.EntitySelectorConfig(domain="humidifier")
             )
 
         if light_control:
-            schema_dict[vol.Required(CONF_LIGHT_ENTITY)] = selector.EntitySelector(
-                selector.EntitySelectorConfig(domain=None)
+            current_light = self.config_entry.data.get(CONF_LIGHT_ENTITY)
+            schema_dict[vol.Required(
+                CONF_LIGHT_ENTITY,
+                default=current_light
+            )] = selector.EntitySelector(
+                selector.EntitySelectorConfig(domain=["light", "switch", "select"])
             )
+            # Add select option fields with current values or defaults
+            current_on = self.config_entry.data.get(CONF_LIGHT_SELECT_ON_OPTION, DEFAULT_LIGHT_SELECT_ON_OPTION)
+            current_off = self.config_entry.data.get(CONF_LIGHT_SELECT_OFF_OPTION, DEFAULT_LIGHT_SELECT_OFF_OPTION)
+            schema_dict[vol.Optional(
+                CONF_LIGHT_SELECT_ON_OPTION,
+                default=current_on
+            )] = selector.TextSelector()
+            schema_dict[vol.Optional(
+                CONF_LIGHT_SELECT_OFF_OPTION,
+                default=current_off
+            )] = selector.TextSelector()
 
         return self.async_show_form(
             step_id="sensors", data_schema=vol.Schema(schema_dict), errors=errors

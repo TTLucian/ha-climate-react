@@ -22,7 +22,9 @@
           "temperature_sensor": "Temperature Sensor",
           "humidity_sensor": "Humidity Sensor",
           "humidifier_entity": "Humidifier Entity (Optional)",
-          "light_entity": "Light Entity (Required when light control is enabled)"
+          "light_entity": "Light Entity (Required when light control is enabled)",
+          "light_select_on_option": "Select Entity 'On' Option (for select entities only)",
+          "light_select_off_option": "Select Entity 'Off' Option (for select entities only)"
         }
       }
     },
@@ -57,7 +59,9 @@
           "temperature_sensor": "Temperature Sensor",
           "humidity_sensor": "Humidity Sensor",
           "humidifier_entity": "Humidifier Entity (Optional)",
-          "light_entity": "Light Entity (Required when light control is enabled)"
+          "light_entity": "Light Entity (Required when light control is enabled)",
+          "light_select_on_option": "Select Entity 'On' Option (for select entities only)",
+          "light_select_off_option": "Select Entity 'Off' Option (for select entities only)"
         }
       }
     },
