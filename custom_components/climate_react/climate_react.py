@@ -391,10 +391,10 @@ class ClimateReactController:
 
     @callback
     async def _async_temperature_changed(self, event: Event) -> None:
-        """Handle temperature sensor state change."""
-        if not self._enabled:
-            return
+        """Handle temperature sensor state change.
 
+        Always capture the reading for UI attributes; only run automation when enabled.
+        """
         new_state: State = event.data.get("new_state")
         if not new_state or new_state.state in (STATE_UNAVAILABLE, STATE_UNKNOWN):
             return
@@ -410,9 +410,13 @@ class ClimateReactController:
             else:
                 temperature = float(new_state.state)
             
+            # Always keep the last reading for UI/diagnostics
             self._last_temp = temperature
             _LOGGER.debug("Temperature changed to %.1f°C for %s", temperature, self.climate_entity)
-            await self._async_handle_temperature_threshold(temperature)
+
+            # Only run automation when enabled
+            if self._enabled:
+                await self._async_handle_temperature_threshold(temperature)
         except (ValueError, TypeError) as err:
             _LOGGER.warning("Invalid temperature state: %s (%s)", new_state.state, err)
 
@@ -447,9 +451,10 @@ class ClimateReactController:
 
     @callback
     async def _async_humidity_changed(self, event: Event) -> None:
-        """Handle humidity sensor state change."""
-        if not self._enabled:
-            return
+        """Handle humidity sensor state change.
+
+        Always capture the reading for UI attributes; only run automation when enabled.
+        """
 
         new_state: State = event.data.get("new_state")
         if not new_state or new_state.state in (STATE_UNAVAILABLE, STATE_UNKNOWN):
@@ -468,7 +473,10 @@ class ClimateReactController:
             humidity = float(humidity)
             self._last_humidity = humidity
             _LOGGER.debug("Humidity changed to %.1f%% for %s", humidity, self.climate_entity)
-            await self._async_handle_humidity_threshold(humidity)
+
+            # Only run automation when enabled
+            if self._enabled:
+                await self._async_handle_humidity_threshold(humidity)
         except (ValueError, TypeError) as err:
             _LOGGER.warning("Invalid humidity state: %s (%s)", new_state.state, err)
 

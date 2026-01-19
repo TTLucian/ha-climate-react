@@ -10,9 +10,11 @@
           "use_external_humidity_sensor": "Use External Humidity Sensor?",
           "use_humidity": "Enable Humidity Control?",
           "enable_light_control": "Enable Light Control?",
+          "ac_humidity_controls": "Enable AC Humidity Controls (if supported)?",
           "use_external_temp_sensor_description": "Choose yes to read temperature from an external sensor instead of the climate entity.",
           "use_humidity_description": "Enable humidity-based automation and optional humidifier control.",
-          "enable_light_control_description": "Toggle the AC display light before/after commands and when the automation turns on/off."
+          "enable_light_control_description": "Toggle the AC display light before/after commands and when the automation turns on/off.",
+          "ac_humidity_controls_description": "If your AC supports humidity control (humidify/dehumidify), enable this to configure AC behavior for both high and low humidity. Otherwise, only the humidifier will be controlled for low humidity."
         }
       },
       "sensors": {
@@ -54,9 +56,11 @@
           "use_external_humidity_sensor": "Use External Humidity Sensor?",
           "use_humidity": "Enable Humidity Control?",
           "enable_light_control": "Enable Light Control?",
+          "ac_humidity_controls": "Enable AC Humidity Controls (if supported)?",
           "use_external_temp_sensor_description": "Choose yes to read temperature from an external sensor instead of the climate entity.",
           "use_humidity_description": "Enable humidity-based automation and optional humidifier control.",
-          "enable_light_control_description": "Toggle the AC display light before/after commands and when the automation turns on/off."
+          "enable_light_control_description": "Toggle the AC display light before/after commands and when the automation turns on/off.",
+          "ac_humidity_controls_description": "If your AC supports humidity control (humidify/dehumidify), enable this to configure AC behavior for both high and low humidity. Otherwise, only the humidifier will be controlled for low humidity."
         }
       },
       "sensors": {

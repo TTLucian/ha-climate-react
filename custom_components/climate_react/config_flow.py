@@ -23,6 +23,7 @@ from .const import (
     CONF_USE_EXTERNAL_HUMIDITY_SENSOR,
     CONF_USE_EXTERNAL_TEMP_SENSOR,
     CONF_USE_HUMIDITY,
+    CONF_AC_HUMIDITY_CONTROLS,
     CONF_MAX_HUMIDITY,
     CONF_MAX_TEMP,
     CONF_MIN_HUMIDITY,
@@ -70,6 +71,7 @@ from .const import (
     DEFAULT_USE_EXTERNAL_HUMIDITY_SENSOR,
     DEFAULT_USE_EXTERNAL_TEMP_SENSOR,
     DEFAULT_USE_HUMIDITY,
+    DEFAULT_AC_HUMIDITY_CONTROLS,
     DOMAIN,
 )
 
@@ -102,10 +104,11 @@ class ClimateReactConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 use_external_temp = user_input.get(CONF_USE_EXTERNAL_TEMP_SENSOR, DEFAULT_USE_EXTERNAL_TEMP_SENSOR)
                 use_humidity = user_input.get(CONF_USE_HUMIDITY, DEFAULT_USE_HUMIDITY)
                 use_external_humidity = user_input.get(CONF_USE_EXTERNAL_HUMIDITY_SENSOR, DEFAULT_USE_EXTERNAL_HUMIDITY_SENSOR)
+                ac_humidity_controls = user_input.get(CONF_AC_HUMIDITY_CONTROLS, DEFAULT_AC_HUMIDITY_CONTROLS)
                 use_light_control = user_input.get(CONF_ENABLE_LIGHT_CONTROL, DEFAULT_ENABLE_LIGHT_CONTROL)
                 
                 # If no optional features enabled, skip sensors step and create entry directly
-                if not (use_external_temp or use_humidity or use_external_humidity or use_light_control):
+                if not (use_external_temp or use_humidity or use_external_humidity or ac_humidity_controls or use_light_control):
                     return await self._async_create_entry_with_defaults(user_input)
                 
                 return await self.async_step_sensors()
@@ -131,6 +134,11 @@ class ClimateReactConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 description={"suggested_value": DEFAULT_USE_EXTERNAL_HUMIDITY_SENSOR}
             ): selector.BooleanSelector(),
             vol.Optional(
+                CONF_AC_HUMIDITY_CONTROLS,
+                default=DEFAULT_AC_HUMIDITY_CONTROLS,
+                description={"suggested_value": DEFAULT_AC_HUMIDITY_CONTROLS}
+            ): selector.BooleanSelector(),
+            vol.Optional(
                 CONF_ENABLE_LIGHT_CONTROL,
                 default=DEFAULT_ENABLE_LIGHT_CONTROL,
                 description={"suggested_value": DEFAULT_ENABLE_LIGHT_CONTROL}
@@ -154,6 +162,7 @@ class ClimateReactConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         use_external_temp = self._step1_data.get(CONF_USE_EXTERNAL_TEMP_SENSOR, DEFAULT_USE_EXTERNAL_TEMP_SENSOR)
         use_humidity = self._step1_data.get(CONF_USE_HUMIDITY, DEFAULT_USE_HUMIDITY)
         use_external_humidity = self._step1_data.get(CONF_USE_EXTERNAL_HUMIDITY_SENSOR, DEFAULT_USE_EXTERNAL_HUMIDITY_SENSOR)
+        ac_humidity_controls = self._step1_data.get(CONF_AC_HUMIDITY_CONTROLS, DEFAULT_AC_HUMIDITY_CONTROLS)
 
         if user_input is not None:
             if use_external_temp:
@@ -488,6 +497,11 @@ class ClimateReactOptionsFlow(config_entries.OptionsFlow):
                 description={"suggested_value": self.config_entry.data.get(CONF_USE_EXTERNAL_HUMIDITY_SENSOR, DEFAULT_USE_EXTERNAL_HUMIDITY_SENSOR)}
             ): selector.BooleanSelector(),
             vol.Optional(
+                CONF_AC_HUMIDITY_CONTROLS,
+                default=self.config_entry.data.get(CONF_AC_HUMIDITY_CONTROLS, DEFAULT_AC_HUMIDITY_CONTROLS),
+                description={"suggested_value": self.config_entry.data.get(CONF_AC_HUMIDITY_CONTROLS, DEFAULT_AC_HUMIDITY_CONTROLS)}
+            ): selector.BooleanSelector(),
+            vol.Optional(
                 CONF_ENABLE_LIGHT_CONTROL,
                 default=self.config_entry.data.get(CONF_ENABLE_LIGHT_CONTROL, DEFAULT_ENABLE_LIGHT_CONTROL),
                 description={"suggested_value": self.config_entry.data.get(CONF_ENABLE_LIGHT_CONTROL, DEFAULT_ENABLE_LIGHT_CONTROL)}
@@ -511,6 +525,7 @@ class ClimateReactOptionsFlow(config_entries.OptionsFlow):
         use_external_temp = self._step1_data.get(CONF_USE_EXTERNAL_TEMP_SENSOR, DEFAULT_USE_EXTERNAL_TEMP_SENSOR)
         use_humidity = self._step1_data.get(CONF_USE_HUMIDITY, DEFAULT_USE_HUMIDITY)
         use_external_humidity = self._step1_data.get(CONF_USE_EXTERNAL_HUMIDITY_SENSOR, DEFAULT_USE_EXTERNAL_HUMIDITY_SENSOR)
+        ac_humidity_controls = self._step1_data.get(CONF_AC_HUMIDITY_CONTROLS, DEFAULT_AC_HUMIDITY_CONTROLS)
         light_control = self._step1_data.get(CONF_ENABLE_LIGHT_CONTROL, DEFAULT_ENABLE_LIGHT_CONTROL)
 
         if user_input is not None:

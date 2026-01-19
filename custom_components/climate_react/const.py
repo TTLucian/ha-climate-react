@@ -8,6 +8,7 @@ CONF_USE_EXTERNAL_TEMP_SENSOR = "use_external_temp_sensor"
 CONF_TEMPERATURE_SENSOR = "temperature_sensor"
 CONF_USE_HUMIDITY = "use_humidity"
 CONF_USE_EXTERNAL_HUMIDITY_SENSOR = "use_external_humidity_sensor"
+CONF_AC_HUMIDITY_CONTROLS = "ac_humidity_controls"
 CONF_HUMIDITY_SENSOR = "humidity_sensor"
 CONF_HUMIDIFIER_ENTITY = "humidifier_entity"
 CONF_MIN_TEMP = "min_temp_threshold"
@@ -63,6 +64,7 @@ DEFAULT_LIGHT_SELECT_OFF_OPTION = "off"
 DEFAULT_USE_EXTERNAL_TEMP_SENSOR = False
 DEFAULT_USE_HUMIDITY = False
 DEFAULT_USE_EXTERNAL_HUMIDITY_SENSOR = False
+DEFAULT_AC_HUMIDITY_CONTROLS = False
 
 # Light behavior options
 LIGHT_BEHAVIOR_ON = "on"

@@ -63,47 +63,53 @@ async def async_setup_entry(
             selects.append(ClimateReactLightBehaviorSelect(controller, entry))
 
         if _supports("hvac_modes"):
-            selects.extend(
-                [
-                    ClimateReactModeLowTempSelect(controller, entry),
-                    ClimateReactModeHighTempSelect(controller, entry),
-                ]
-            )
-
+            selects.extend([
+                ClimateReactModeLowTempSelect(controller, entry),
+                ClimateReactModeHighTempSelect(controller, entry),
+            ])
         if _supports("fan_modes"):
-            selects.extend(
-                [
-                    ClimateReactFanLowTempSelect(controller, entry),
-                    ClimateReactFanHighTempSelect(controller, entry),
-                ]
-            )
-
+            selects.extend([
+                ClimateReactFanLowTempSelect(controller, entry),
+                ClimateReactFanHighTempSelect(controller, entry),
+            ])
         if _supports("swing_modes"):
-            selects.extend(
-                [
-                    ClimateReactSwingLowTempSelect(controller, entry),
-                    ClimateReactSwingHighTempSelect(controller, entry),
-                ]
-            )
-
+            selects.extend([
+                ClimateReactSwingLowTempSelect(controller, entry),
+                ClimateReactSwingHighTempSelect(controller, entry),
+            ])
         if _supports("swing_horizontal_modes"):
-            selects.extend(
-                [
-                    ClimateReactSwingHorizontalLowTempSelect(controller, entry),
-                    ClimateReactSwingHorizontalHighTempSelect(controller, entry),
-                ]
-            )
+            selects.extend([
+                ClimateReactSwingHorizontalLowTempSelect(controller, entry),
+                ClimateReactSwingHorizontalHighTempSelect(controller, entry),
+            ])
 
+        # --- HYBRID HUMIDITY LOGIC ---
+        ac_humidity_controls = entry.data.get("ac_humidity_controls", False)
         if entry.data.get(CONF_USE_HUMIDITY, False):
-            if _supports("hvac_modes"):
-                selects.append(ClimateReactModeHighHumiditySelect(controller, entry))
-            if _supports("fan_modes"):
-                selects.append(ClimateReactFanHighHumiditySelect(controller, entry))
-            if _supports("swing_modes"):
-                selects.append(ClimateReactSwingHighHumiditySelect(controller, entry))
-            if _supports("swing_horizontal_modes"):
-                selects.append(ClimateReactSwingHorizontalHighHumiditySelect(controller, entry))
-
+            # Detect if climate supports humidity control
+            supports_humidity = (
+                "target_humidity" in state.attributes or _supports("humidity_modes")
+            )
+            if supports_humidity and ac_humidity_controls:
+                # AC supports humidity: create selects for both high and low humidity
+                if _supports("hvac_modes"):
+                    selects.append(ClimateReactModeHighHumiditySelect(controller, entry))
+                if _supports("fan_modes"):
+                    selects.append(ClimateReactFanHighHumiditySelect(controller, entry))
+                if _supports("swing_modes"):
+                    selects.append(ClimateReactSwingHighHumiditySelect(controller, entry))
+                if _supports("swing_horizontal_modes"):
+                    selects.append(ClimateReactSwingHorizontalHighHumiditySelect(controller, entry))
+                # For low humidity (humidification)
+                if _supports("hvac_modes"):
+                    selects.append(ClimateReactModeLowHumiditySelect(controller, entry))
+                if _supports("fan_modes"):
+                    selects.append(ClimateReactFanLowHumiditySelect(controller, entry))
+                if _supports("swing_modes"):
+                    selects.append(ClimateReactSwingLowHumiditySelect(controller, entry))
+                if _supports("swing_horizontal_modes"):
+                    selects.append(ClimateReactSwingHorizontalLowHumiditySelect(controller, entry))
+            # else: No AC humidity support or not enabled: only create humidifier control (if implemented)
         return selects
 
     # Get initial climate state
@@ -503,3 +509,44 @@ class ClimateReactLightBehaviorSelect(ClimateReactBaseSelect):
     @property
     def available(self) -> bool:
         return self._controller.light_entity is not None
+
+
+class ClimateReactModeLowHumiditySelect(ClimateReactBaseSelect):
+    """Select for AC mode when humidity is below min threshold (humidification)."""
+    _attr_translation_key = "mode_low_humidity"
+    _allowed_options = ["auto", "dry", "off", "heat", "cool", "fan_only"]
+    def _refresh_options(self, state) -> None:
+        options = []
+        if state and "hvac_modes" in state.attributes:
+            options = [opt for opt in state.attributes["hvac_modes"] if opt in self._allowed_options]
+        self._attr_options = options
+
+
+class ClimateReactFanLowHumiditySelect(ClimateReactBaseSelect):
+    """Select for AC fan mode when humidity is below min threshold (humidification)."""
+    _attr_translation_key = "fan_low_humidity"
+    def _refresh_options(self, state) -> None:
+        options = []
+        if state and "fan_modes" in state.attributes:
+            options = list(state.attributes["fan_modes"])
+        self._attr_options = options
+
+
+class ClimateReactSwingLowHumiditySelect(ClimateReactBaseSelect):
+    """Select for AC swing mode when humidity is below min threshold (humidification)."""
+    _attr_translation_key = "swing_low_humidity"
+    def _refresh_options(self, state) -> None:
+        options = []
+        if state and "swing_modes" in state.attributes:
+            options = list(state.attributes["swing_modes"])
+        self._attr_options = options
+
+
+class ClimateReactSwingHorizontalLowHumiditySelect(ClimateReactBaseSelect):
+    """Select for AC horizontal swing mode when humidity is below min threshold (humidification)."""
+    _attr_translation_key = "swing_horizontal_low_humidity"
+    def _refresh_options(self, state) -> None:
+        options = []
+        if state and "swing_horizontal_modes" in state.attributes:
+            options = list(state.attributes["swing_horizontal_modes"])
+        self._attr_options = options
