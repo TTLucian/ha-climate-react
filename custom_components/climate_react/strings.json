@@ -30,7 +30,8 @@
     },
     "error": {
       "entity_not_found": "The specified entity was not found",
-      "entity_required": "Entity is required when using external sensor"
+      "entity_required": "Entity is required when using external sensor",
+      "invalid_domain": "Light entity must be a light, switch, or select entity"
     },
     "abort": {
       "already_configured": "This climate entity is already configured"

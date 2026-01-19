@@ -97,6 +97,16 @@ class ClimateReactConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 errors[CONF_CLIMATE_ENTITY] = "entity_not_found"
             if not errors:
                 self._step1_data = dict(user_input)
+                # Check if any optional features are enabled
+                use_external_temp = user_input.get(CONF_USE_EXTERNAL_TEMP_SENSOR, DEFAULT_USE_EXTERNAL_TEMP_SENSOR)
+                use_humidity = user_input.get(CONF_USE_HUMIDITY, DEFAULT_USE_HUMIDITY)
+                use_external_humidity = user_input.get(CONF_USE_EXTERNAL_HUMIDITY_SENSOR, DEFAULT_USE_EXTERNAL_HUMIDITY_SENSOR)
+                use_light_control = user_input.get(CONF_ENABLE_LIGHT_CONTROL, DEFAULT_ENABLE_LIGHT_CONTROL)
+                
+                # If no optional features enabled, skip sensors step and create entry directly
+                if not (use_external_temp or use_humidity or use_external_humidity or use_light_control):
+                    return await self._async_create_entry_with_defaults(user_input)
+                
                 return await self.async_step_sensors()
 
         # Build schema with all fields
@@ -170,6 +180,8 @@ class ClimateReactConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     errors[CONF_LIGHT_ENTITY] = "entity_required"
                 elif not self.hass.states.get(light_entity):
                     errors[CONF_LIGHT_ENTITY] = "entity_not_found"
+                elif not any(light_entity.startswith(domain + ".") for domain in ["light", "switch", "select"]):
+                    errors[CONF_LIGHT_ENTITY] = "invalid_domain"
 
             if not errors:
                 climate_entity = self._step1_data[CONF_CLIMATE_ENTITY]
@@ -210,8 +222,26 @@ class ClimateReactConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 data[CONF_LIGHT_SELECT_ON_OPTION] = user_input.get(CONF_LIGHT_SELECT_ON_OPTION, DEFAULT_LIGHT_SELECT_ON_OPTION)
                 data[CONF_LIGHT_SELECT_OFF_OPTION] = user_input.get(CONF_LIGHT_SELECT_OFF_OPTION, DEFAULT_LIGHT_SELECT_OFF_OPTION)
 
+                # Generate title matching device name logic
+                state = self.hass.states.get(climate_entity)
+                if state:
+                    friendly_name = state.attributes.get("friendly_name")
+                    if friendly_name:
+                        # If friendly_name is just the entity_id, extract the name part
+                        if friendly_name.startswith("climate."):
+                            entity_name = friendly_name.split(".")[-1].replace("_", " ").title()
+                            title = f"Climate React {entity_name}"
+                        else:
+                            title = f"Climate React {friendly_name}"
+                    else:
+                        entity_name = climate_entity.split(".")[-1].replace("_", " ").title()
+                        title = f"Climate React {entity_name}"
+                else:
+                    entity_name = climate_entity.split(".")[-1].replace("_", " ").title()
+                    title = f"Climate React {entity_name}"
+
                 return self.async_create_entry(
-                    title=f"Climate React - {climate_entity}",
+                    title=title,
                     data=data,
                 )
 
@@ -250,6 +280,67 @@ class ClimateReactConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             step_id="sensors", data_schema=vol.Schema(schema_dict), errors=errors
         )
 
+    async def _async_create_entry_with_defaults(self, step1_data: dict[str, Any]) -> config_entries.FlowResult:
+        """Create entry with default values when no optional features are enabled."""
+        climate_entity = step1_data[CONF_CLIMATE_ENTITY]
+        await self.async_set_unique_id(climate_entity)
+        self._abort_if_unique_id_configured()
+
+        data = {**step1_data}
+        data[CONF_TEMPERATURE_SENSOR] = None
+        data[CONF_HUMIDITY_SENSOR] = None
+        data[CONF_HUMIDIFIER_ENTITY] = None
+
+        # Prepare defaults
+        data[CONF_MIN_TEMP] = DEFAULT_MIN_TEMP
+        data[CONF_MAX_TEMP] = DEFAULT_MAX_TEMP
+        data[CONF_MIN_HUMIDITY] = DEFAULT_MIN_HUMIDITY
+        data[CONF_MAX_HUMIDITY] = DEFAULT_MAX_HUMIDITY
+        data[CONF_MIN_RUN_TIME] = DEFAULT_MIN_RUN_TIME
+        data[CONF_MODE_LOW_TEMP] = DEFAULT_MODE_LOW_TEMP
+        data[CONF_MODE_HIGH_TEMP] = DEFAULT_MODE_HIGH_TEMP
+        data[CONF_MODE_HIGH_HUMIDITY] = DEFAULT_MODE_HIGH_HUMIDITY
+        data[CONF_FAN_LOW_TEMP] = DEFAULT_FAN_MODE
+        data[CONF_FAN_HIGH_TEMP] = DEFAULT_FAN_MODE
+        data[CONF_FAN_HIGH_HUMIDITY] = DEFAULT_FAN_MODE
+        data[CONF_SWING_LOW_TEMP] = DEFAULT_SWING_MODE
+        data[CONF_SWING_HIGH_TEMP] = DEFAULT_SWING_MODE
+        data[CONF_SWING_HIGH_HUMIDITY] = DEFAULT_SWING_MODE
+        data[CONF_SWING_HORIZONTAL_LOW_TEMP] = DEFAULT_SWING_MODE
+        data[CONF_SWING_HORIZONTAL_HIGH_TEMP] = DEFAULT_SWING_MODE
+        data[CONF_SWING_HORIZONTAL_HIGH_HUMIDITY] = DEFAULT_SWING_MODE
+        data[CONF_TEMP_LOW_TEMP] = DEFAULT_TEMP_LOW_TEMP
+        data[CONF_TEMP_HIGH_TEMP] = DEFAULT_TEMP_HIGH_TEMP
+        data[CONF_TEMP_HIGH_HUMIDITY] = DEFAULT_TEMP_HIGH_HUMIDITY
+        data[CONF_DELAY_BETWEEN_COMMANDS] = DEFAULT_DELAY_BETWEEN_COMMANDS
+        data[CONF_TIMER_MINUTES] = DEFAULT_TIMER_MINUTES
+        data[CONF_ENABLED] = DEFAULT_ENABLED
+        data[CONF_LIGHT_ENTITY] = None
+        data[CONF_LIGHT_SELECT_ON_OPTION] = DEFAULT_LIGHT_SELECT_ON_OPTION
+        data[CONF_LIGHT_SELECT_OFF_OPTION] = DEFAULT_LIGHT_SELECT_OFF_OPTION
+
+        # Generate title matching device name logic
+        state = self.hass.states.get(climate_entity)
+        if state:
+            friendly_name = state.attributes.get("friendly_name")
+            if friendly_name:
+                # If friendly_name is just the entity_id, extract the name part
+                if friendly_name.startswith("climate."):
+                    entity_name = friendly_name.split(".")[-1].replace("_", " ").title()
+                    title = f"Climate React {entity_name}"
+                else:
+                    title = f"Climate React {friendly_name}"
+            else:
+                entity_name = climate_entity.split(".")[-1].replace("_", " ").title()
+                title = f"Climate React {entity_name}"
+        else:
+            entity_name = climate_entity.split(".")[-1].replace("_", " ").title()
+            title = f"Climate React {entity_name}"
+
+        return self.async_create_entry(
+            title=title,
+            data=data,
+        )
 
     @staticmethod
     @callback
@@ -361,6 +452,8 @@ class ClimateReactOptionsFlow(config_entries.OptionsFlow):
                     errors[CONF_LIGHT_ENTITY] = "entity_required"
                 elif not self.hass.states.get(light_entity):
                     errors[CONF_LIGHT_ENTITY] = "entity_not_found"
+                elif not any(light_entity.startswith(domain + ".") for domain in ["light", "switch", "select"]):
+                    errors[CONF_LIGHT_ENTITY] = "invalid_domain"
 
             if not errors:
                 # Merge existing data with updated selections

@@ -79,7 +79,7 @@ class ClimateReactController:
         self._climate_max_temp: float | None = None
         self._last_mode_change_time: float | None = None
         self._last_set_hvac_mode: str | None = None
-        self._timer_minutes: int = int(self.config.get(CONF_TIMER_MINUTES, DEFAULT_TIMER_MINUTES))
+        self._timer_minutes: int = max(0, int(self.config.get(CONF_TIMER_MINUTES, DEFAULT_TIMER_MINUTES)))
         self._timer_task: asyncio.Task | None = None
         self._timer_listeners: list[Callable[[], None]] = []
         self._light_control_enabled: bool = bool(self.config.get(CONF_ENABLE_LIGHT_CONTROL, DEFAULT_ENABLE_LIGHT_CONTROL))
@@ -438,9 +438,6 @@ class ClimateReactController:
 
     async def _async_evaluate_state(self) -> None:
         """Evaluate current sensor states."""
-        if not self._enabled:
-            return
-
         # Get current temperature
         temp_state = self.hass.states.get(self.temperature_sensor)
         if temp_state and temp_state.state not in (STATE_UNAVAILABLE, STATE_UNKNOWN):
@@ -451,11 +448,13 @@ class ClimateReactController:
                     temperature = temp_state.attributes.get("current_temperature")
                     if temperature is not None:
                         self._last_temp = float(temperature)
-                        await self._async_handle_temperature_threshold(float(temperature))
+                        if self._enabled:
+                            await self._async_handle_temperature_threshold(float(temperature))
                 else:
                     temperature = float(temp_state.state)
                     self._last_temp = temperature
-                    await self._async_handle_temperature_threshold(temperature)
+                    if self._enabled:
+                        await self._async_handle_temperature_threshold(temperature)
             except (ValueError, TypeError):
                 pass
 
@@ -470,11 +469,13 @@ class ClimateReactController:
                         humidity = humidity_state.attributes.get("current_humidity")
                         if humidity is not None:
                             self._last_humidity = float(humidity)
-                            await self._async_handle_humidity_threshold(float(humidity))
+                            if self._enabled:
+                                await self._async_handle_humidity_threshold(float(humidity))
                     else:
                         humidity = float(humidity_state.state)
                         self._last_humidity = humidity
-                        await self._async_handle_humidity_threshold(humidity)
+                        if self._enabled:
+                            await self._async_handle_humidity_threshold(humidity)
                 except (ValueError, TypeError):
                     pass
 
