@@ -126,14 +126,14 @@ class ClimateReactStatusSensor(ClimateReactBaseSensor):
         
         # Temperature info
         if self._controller._last_temp is not None:
-            attrs["temperature"] = round(self._controller._last_temp, 1)
+            attrs["current_temperature"] = round(self._controller._last_temp, 1)
             attrs["temperature_min"] = config.get(CONF_MIN_TEMP)
             attrs["temperature_max"] = config.get(CONF_MAX_TEMP)
             attrs["temperature_source"] = self._controller.temperature_sensor
         
         # Humidity info
         if self._controller.humidity_sensor and self._controller._last_humidity is not None:
-            attrs["humidity"] = round(self._controller._last_humidity, 1)
+            attrs["current_humidity"] = round(self._controller._last_humidity, 1)
             attrs["humidity_min"] = config.get(CONF_MIN_HUMIDITY)
             attrs["humidity_max"] = config.get(CONF_MAX_HUMIDITY)
             attrs["humidity_source"] = self._controller.humidity_sensor

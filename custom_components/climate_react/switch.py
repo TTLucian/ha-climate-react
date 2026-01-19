@@ -47,7 +47,6 @@ class ClimateReactSwitch(SwitchEntity):
         self._controller = controller
         self._entry = entry
         self._attr_unique_id = f"{entry.entry_id}_switch"
-        self._attr_icon = "mdi:thermostat-off"  # Default icon, will be overridden by property
         self._attr_device_info = {
             "identifiers": {(DOMAIN, entry.entry_id)},
             "name": controller.get_device_name(),
@@ -68,13 +67,11 @@ class ClimateReactSwitch(SwitchEntity):
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn on Climate React."""
         await self._controller.async_enable()
-        self._attr_icon = "mdi:thermostat-auto"
         self.async_write_ha_state()
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Turn off Climate React."""
         await self._controller.async_disable()
-        self._attr_icon = "mdi:thermostat-off"
         self.async_write_ha_state()
 
     @property
@@ -92,7 +89,7 @@ class ClimateReactSwitch(SwitchEntity):
         
         # Add current temperature if available
         if self._controller._last_temp is not None:
-            attrs["temperature"] = round(self._controller._last_temp, 1)
+            attrs["current_temperature"] = round(self._controller._last_temp, 1)
         
         if self._controller.humidity_sensor:
             attrs["humidity_sensor"] = self._controller.humidity_sensor
@@ -101,7 +98,7 @@ class ClimateReactSwitch(SwitchEntity):
         
         # Add current humidity if available
         if self._controller.humidity_sensor and self._controller._last_humidity is not None:
-            attrs["humidity"] = round(self._controller._last_humidity, 1)
+            attrs["current_humidity"] = round(self._controller._last_humidity, 1)
         
         return attrs
 
