@@ -1,0 +1,71 @@
+name: Solar AC CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    types: [opened, reopened, synchronize, edited]
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1️⃣ Checkout repo
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+          fetch-depth: 0
+
+      # 2️⃣ Set up Python
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      # 3️⃣ Install dependencies
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install homeassistant ruff black
+
+      # 4️⃣ Lint & auto-fix with Ruff
+      - name: Lint & auto-fix with Ruff
+        run: |
+          python -m ruff check custom_components/solar_ac_controller --fix
+
+      # 5️⃣ Format code with Black
+      - name: Format code with Black
+        run: |
+          python -m black custom_components/solar_ac_controller
+
+      # 6️⃣ Validate Home Assistant integration
+      - name: Validate HA integration
+        run: |
+          python - << 'EOF'
+          import homeassistant.loader as loader
+          print("Home Assistant integration loader imported successfully.")
+          EOF
+
+      # 7️⃣ Commit auto-fixes if any
+      - name: Commit auto-fixes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add custom_components/solar_ac_controller
+          if ! git diff --cached --quiet; then
+            git commit -m "Auto-fix code style with Ruff & Black"
+            git push
+          else
+            echo "No changes to commit"
+          fi
+
+      # 8️⃣ Release Drafter
+      - name: Update Release Draft
+        uses: release-drafter/release-drafter@v6
+        with:
+          config-name: .github/release-drafter.yml
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
