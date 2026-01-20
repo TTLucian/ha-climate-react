@@ -28,20 +28,17 @@ jobs:
       # Lint with Ruff
       - name: Lint with Ruff
         run: |
-          python -m ruff check custom_components/solar_ac_controller || true
+          python -m ruff check custom_components/solar_ac_controller
 
       # Format check with Black
       - name: Format check with Black
         run: |
-          python -m black --check custom_components/solar_ac_controller || true
+          python -m black --check custom_components/solar_ac_controller
 
       # Validate Home Assistant integration
       - name: Validate HA integration
         run: |
           python - << 'EOF'
-          try:
-              import homeassistant.loader as loader
-              print("Home Assistant integration loader imported successfully.")
-          except Exception as e:
-              print(f"Error importing Home Assistant loader: {e}")
+          import homeassistant.loader as loader
+          print("Home Assistant integration loader imported successfully.")
           EOF

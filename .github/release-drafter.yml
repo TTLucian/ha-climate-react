@@ -1,5 +1,6 @@
 name-template: 'v$NEXT_PATCH_VERSION 🌞 Solar AC'
 tag-template: 'v$NEXT_PATCH_VERSION'
+
 categories:
   - title: '✨ New Features'
     labels:
@@ -10,4 +11,5 @@ categories:
   - title: '⚡ Improvements'
     labels:
       - 'enhancement'
+
 change-template: '- $TITLE @$AUTHOR (#$NUMBER)'
