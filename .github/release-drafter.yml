@@ -1,29 +1,3 @@
-name: Release Drafter
-
-# Trigger on push to default branch or PR changes
-on:
-  push:
-    branches:
-      - main  # replace with your default branch if different
-  pull_request:
-    types: [opened, reopened, synchronize, edited]
-
-# Main job
-jobs:
-  update_release_draft:
-    runs-on: ubuntu-latest
-    steps:
-      # Check out the code
-      - uses: actions/checkout@v3
-
-      # Run Release Drafter
-      - name: Update Release Draft
-        uses: release-drafter/release-drafter@v6
-        with:
-          config-name: .github/release-drafter.yml
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-# Draft template (optional)
 name-template: 'v$NEXT_PATCH_VERSION 🌞 Solar AC'
 tag-template: 'v$NEXT_PATCH_VERSION'
 categories:
