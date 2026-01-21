@@ -4,7 +4,7 @@
   <img src="https://img.shields.io/github/v/release/TTLucian/ha-climate-react?style=for-the-badge" />
   <img src="https://img.shields.io/github/license/TTLucian/ha-climate-react?style=for-the-badge" />
   <img src="https://img.shields.io/badge/HACS-Custom-orange.svg?style=for-the-badge" />
-  <img src="https://img.shields.io/github/actions/workflow/status/TTLucian/ha-climate-react/validate.yml?style=for-the-badge" />
+  <img src="https://img.shields.io/github/actions/workflow/status/TTLucian/ha-climate-react/ci.yml?style=for-the-badge" />
 </p>
 
 A Home Assistant custom integration that automatically controls your HVAC system based on temperature and humidity thresholds. Inspired by Sensibo's Climate React feature.
