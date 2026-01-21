@@ -1,4 +1,5 @@
 """Switch platform for Climate React integration."""
+
 from __future__ import annotations
 
 import logging
@@ -24,7 +25,9 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up Climate React switch from a config entry."""
-    controller: ClimateReactController = hass.data[DOMAIN][entry.entry_id][DATA_COORDINATOR]
+    controller: ClimateReactController = hass.data[DOMAIN][entry.entry_id][
+        DATA_COORDINATOR
+    ]
     entities: list[SwitchEntity] = [ClimateReactSwitch(controller, entry)]
 
     # Add light control switch only if a light entity is configured
@@ -74,8 +77,13 @@ class ClimateReactSwitch(SwitchEntity):
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         """Return extra state attributes."""
-        from .const import CONF_MIN_TEMP, CONF_MAX_TEMP, CONF_MIN_HUMIDITY, CONF_MAX_HUMIDITY
-        
+        from .const import (
+            CONF_MIN_TEMP,
+            CONF_MAX_TEMP,
+            CONF_MIN_HUMIDITY,
+            CONF_MAX_HUMIDITY,
+        )
+
         config = self._controller.config
         attrs = {
             "climate_entity": self._controller.climate_entity,
@@ -83,20 +91,23 @@ class ClimateReactSwitch(SwitchEntity):
             "min_temp": config.get(CONF_MIN_TEMP),
             "max_temp": config.get(CONF_MAX_TEMP),
         }
-        
+
         # Add current temperature if available
         if self._controller._last_temp is not None:
             attrs["current_temperature"] = round(self._controller._last_temp, 1)
-        
+
         if self._controller.humidity_sensor:
             attrs["humidity_sensor"] = self._controller.humidity_sensor
             attrs["min_humidity"] = config.get(CONF_MIN_HUMIDITY)
             attrs["max_humidity"] = config.get(CONF_MAX_HUMIDITY)
-        
+
         # Add current humidity if available
-        if self._controller.humidity_sensor and self._controller._last_humidity is not None:
+        if (
+            self._controller.humidity_sensor
+            and self._controller._last_humidity is not None
+        ):
             attrs["current_humidity"] = round(self._controller._last_humidity, 1)
-        
+
         return attrs
 
 

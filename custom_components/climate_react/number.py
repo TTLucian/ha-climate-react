@@ -1,4 +1,5 @@
 """Number platform for Climate React integration."""
+
 from __future__ import annotations
 
 import logging
@@ -38,8 +39,10 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up Climate React number entities from a config entry."""
-    controller: ClimateReactController = hass.data[DOMAIN][entry.entry_id][DATA_COORDINATOR]
-    
+    controller: ClimateReactController = hass.data[DOMAIN][entry.entry_id][
+        DATA_COORDINATOR
+    ]
+
     numbers = [
         ClimateReactMinTempNumber(controller, entry),
         ClimateReactMaxTempNumber(controller, entry),
@@ -49,17 +52,19 @@ async def async_setup_entry(
         ClimateReactMinRunTimeNumber(controller, entry),
         ClimateReactTimerNumber(controller, entry),
     ]
-    
+
     if entry.data.get(CONF_USE_HUMIDITY, False):
         # Min humidity only shown if humidifier is configured
         if entry.data.get(CONF_HUMIDIFIER_ENTITY):
             numbers.append(ClimateReactMinHumidityNumber(controller, entry))
-        
-        numbers.extend([
-            ClimateReactMaxHumidityNumber(controller, entry),
-            ClimateReactTempHighHumidityNumber(controller, entry),
-        ])
-    
+
+        numbers.extend(
+            [
+                ClimateReactMaxHumidityNumber(controller, entry),
+                ClimateReactTempHighHumidityNumber(controller, entry),
+            ]
+        )
+
     async_add_entities(numbers, True)
 
 
@@ -85,7 +90,7 @@ class ClimateReactBaseNumber(NumberEntity):
         """Update the threshold value."""
         # Update controller - this updates options without full reload
         await self._controller.async_update_option(self._config_key, value)
-        
+
         # Update local state
         self._attr_native_value = value
         self.async_write_ha_state()
@@ -248,7 +253,9 @@ class ClimateReactDelayBetweenCommandsNumber(ClimateReactBaseNumber):
         super().__init__(controller, entry)
         self._attr_unique_id = f"{entry.entry_id}_delay_between_commands"
         config = {**entry.data, **entry.options}
-        self._attr_native_value = config.get(CONF_DELAY_BETWEEN_COMMANDS, DEFAULT_DELAY_BETWEEN_COMMANDS)
+        self._attr_native_value = config.get(
+            CONF_DELAY_BETWEEN_COMMANDS, DEFAULT_DELAY_BETWEEN_COMMANDS
+        )
 
 
 class ClimateReactMinRunTimeNumber(ClimateReactBaseNumber):
@@ -292,7 +299,9 @@ class ClimateReactTimerNumber(ClimateReactBaseNumber):
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
-        self._remove_listener = self._controller.add_timer_listener(self._on_timer_updated)
+        self._remove_listener = self._controller.add_timer_listener(
+            self._on_timer_updated
+        )
 
     async def async_will_remove_from_hass(self) -> None:
         if self._remove_listener:
