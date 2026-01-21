@@ -1,4 +1,4 @@
-name: Solar AC CI
+name: Climate React CI
 
 on:
   push:
