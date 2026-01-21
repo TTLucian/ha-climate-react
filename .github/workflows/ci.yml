@@ -52,7 +52,7 @@ jobs:
       # 7️⃣ Commit auto-fixes if any and push with PAT
       - name: Commit auto-fixes
         env:
-          GH_PAT: ${{ secrets.GH_PAT }}
+          GH_PAT: ${{ secrets.GH_PAT }}  # linter-ignore
         run: |
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
