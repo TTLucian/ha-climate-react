@@ -10,5 +10,13 @@
   "diagnostics": true,
   "dependencies": [],
   "iot_class": "local_polling",
-  "integration_type": "device"
+  "integration_type": "device",
+  "loggers": ["custom_components.climate_react"],
+  "icon": "mdi:solar-power",
+  "platforms": [
+    "number",
+    "select",
+    "switch"
+  ],
+  "after_dependencies": ["logbook"]
 }

@@ -70,7 +70,7 @@ Full documentation is available in the [integration README](custom_components/cl
 
 ## 💡 Example Use Cases
 
-- **Bedroom**: Keep temperature between 18-26°C, heat at night, cool during day
+- **Bedroom**: Keep temperature between 23-24°C, off at night, cool during day
 - **Humidity Control**: Prevent mold - dehumidify above 60%, humidify below 30%
 - **Office**: Maintain 20-25°C, adjust fan speed based on temperature
 - **Energy Efficiency**: Use climate entity's temperature instead of extra sensors
@@ -83,14 +83,14 @@ All configuration happens through Home Assistant UI:
 **Setup (Config Flow):**
 
 - Climate entity (required) plus toggles for external temperature, humidity use, external humidity, and light control
-- Required selectors only for enabled features (external temperature sensor, external humidity sensor, light entity). Humidifier is optional.
+- Required selectors only for enabled features (external temperature sensor, external humidity sensor, light entity). Humidifier is optional. It should support AC units with humidifier function (testing needed)
 
 **After Setup (Device Entities):**
 
 - **Switch**: Climate React enable/disable and optional light control switch
 - **Numbers**: Temperature/humidity thresholds, target temperatures, delays, minimum runtime, timer minutes
 - **Selects**: HVAC modes, fan modes, swing modes, light behavior per condition
-- **Sensors**: Status, current readings, timer countdown
+- **Sensors**: Status, current readings, timer function
 
 ## 🛠️ Features Detail
 
