@@ -137,6 +137,10 @@ See [.github/copilot-instructions.md](.github/copilot-instructions.md) for detai
 
 MIT License - see [LICENSE](LICENSE) file for details
 
+## 🙌 Credits
+
+**Created by:** [@TTLucian](https://github.com/TTLucian)
+
 ## 🤝 Contributing
 
 Contributions welcome! Please:
