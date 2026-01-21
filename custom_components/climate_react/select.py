@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Callable
+from typing import Callable
 
 from homeassistant.components.select import SelectEntity
 from homeassistant.config_entries import ConfigEntry
@@ -14,11 +14,9 @@ from homeassistant.helpers.event import async_track_state_change_event
 
 from .climate_react import ClimateReactController
 from .const import (
-    CONF_CLIMATE_ENTITY,
     CONF_FAN_HIGH_HUMIDITY,
     CONF_FAN_HIGH_TEMP,
     CONF_FAN_LOW_TEMP,
-    CONF_HUMIDITY_SENSOR,
     CONF_MODE_HIGH_HUMIDITY,
     CONF_MODE_HIGH_TEMP,
     CONF_MODE_LOW_TEMP,
@@ -30,7 +28,6 @@ from .const import (
     CONF_SWING_HORIZONTAL_LOW_TEMP,
     CONF_USE_HUMIDITY,
     CONF_LIGHT_BEHAVIOR,
-    CONF_LIGHT_ENTITY,
     DATA_COORDINATOR,
     DOMAIN,
     LIGHT_BEHAVIOR_OFF,
@@ -156,7 +153,7 @@ async def async_setup_entry(
     async_add_entities(entities, True)
 
     # Store tracking state for listener management
-    _state = {"unsub_climate": None}
+    _state: dict[str, Callable[[], None] | None] = {"unsub_climate": None}
 
     # Track climate entity changes to add new entities if capabilities expand
     async def _on_climate_change(event) -> None:
@@ -190,6 +187,8 @@ class ClimateReactBaseSelect(SelectEntity):
     _attr_has_entity_name = True
     _allowed_options: list[str] | None = None  # Optional filter for allowed options
     _attr_options: list[str] = []  # Initialize with empty list
+    _climate_attr: str | None = None
+    _config_key: str
 
     def __init__(self, controller: ClimateReactController, entry: ConfigEntry) -> None:
         """Initialize the select entity."""
@@ -498,10 +497,11 @@ class ClimateReactLightBehaviorSelect(ClimateReactBaseSelect):
 
     def _refresh_options(self, state) -> None:
         """Light behavior select options are static."""
+        assert self._allowed_options is not None
         self._attr_options = self._allowed_options
         config = {**self._entry.data, **self._entry.options}
         config_option = config.get(self._config_key)
-        if config_option in self._allowed_options:
+        if config_option and config_option in self._allowed_options:
             self._attr_current_option = config_option
         else:
             self._attr_current_option = LIGHT_BEHAVIOR_UNCHANGED

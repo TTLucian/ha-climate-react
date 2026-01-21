@@ -11,8 +11,6 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .climate_react import ClimateReactController
 from .const import (
-    CONF_CLIMATE_ENTITY,
-    CONF_ENABLE_LIGHT_CONTROL,
     DATA_COORDINATOR,
     DOMAIN,
 )
@@ -27,7 +25,7 @@ async def async_setup_entry(
 ) -> None:
     """Set up Climate React switch from a config entry."""
     controller: ClimateReactController = hass.data[DOMAIN][entry.entry_id][DATA_COORDINATOR]
-    entities = [ClimateReactSwitch(controller, entry)]
+    entities: list[SwitchEntity] = [ClimateReactSwitch(controller, entry)]
 
     # Add light control switch only if a light entity is configured
     if controller.light_entity:

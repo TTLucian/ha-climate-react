@@ -7,10 +7,8 @@ from typing import Any
 import voluptuous as vol
 
 from homeassistant import config_entries
-from homeassistant.const import CONF_NAME
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.core import callback
 from homeassistant.helpers import selector
-import homeassistant.helpers.config_validation as cv
 
 from .const import (
     CONF_CLIMATE_ENTITY,
@@ -59,7 +57,6 @@ from .const import (
     DEFAULT_MODE_HIGH_TEMP,
     DEFAULT_MODE_LOW_TEMP,
     DEFAULT_SWING_MODE,
-    DEFAULT_SWING_HORIZONTAL_MODE,
     DEFAULT_TEMP_LOW_TEMP,
     DEFAULT_TEMP_HIGH_TEMP,
     DEFAULT_TEMP_HIGH_HUMIDITY,
@@ -87,7 +84,7 @@ class ClimateReactConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
-    ) -> config_entries.FlowResult:
+    ) -> Any:
         """Handle the initial step - core settings and navigation to sensors step."""
         errors: dict[str, str] = {}
 
@@ -152,7 +149,7 @@ class ClimateReactConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_sensors(
         self, user_input: dict[str, Any] | None = None
-    ) -> config_entries.FlowResult:
+    ) -> Any:
         """Handle sensor selection step based on first-step choices."""
         if not self._step1_data:
             return await self.async_step_user()
@@ -162,7 +159,6 @@ class ClimateReactConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         use_external_temp = self._step1_data.get(CONF_USE_EXTERNAL_TEMP_SENSOR, DEFAULT_USE_EXTERNAL_TEMP_SENSOR)
         use_humidity = self._step1_data.get(CONF_USE_HUMIDITY, DEFAULT_USE_HUMIDITY)
         use_external_humidity = self._step1_data.get(CONF_USE_EXTERNAL_HUMIDITY_SENSOR, DEFAULT_USE_EXTERNAL_HUMIDITY_SENSOR)
-        ac_humidity_controls = self._step1_data.get(CONF_AC_HUMIDITY_CONTROLS, DEFAULT_AC_HUMIDITY_CONTROLS)
 
         if user_input is not None:
             if use_external_temp:
@@ -291,7 +287,7 @@ class ClimateReactConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_light_options(
         self, user_input: dict[str, Any] | None = None
-    ) -> config_entries.FlowResult:
+    ) -> Any:
         """Handle light select entity options step."""
         if not self._step2_data:
             return await self.async_step_sensors()
@@ -299,6 +295,7 @@ class ClimateReactConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
 
         if user_input is not None:
+            assert self._step1_data is not None
             if not errors:
                 climate_entity = self._step1_data[CONF_CLIMATE_ENTITY]
                 await self.async_set_unique_id(climate_entity)
@@ -433,7 +430,7 @@ class ClimateReactConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             entity_name = climate_entity.split(".")[-1].replace("_", " ").title()
             title = f"Climate React {entity_name}"
 
-        return self.async_create_entry(
+        return self.async_create_entry(  # type: ignore
             title=title,
             data=data,
         )
@@ -458,7 +455,7 @@ class ClimateReactOptionsFlow(config_entries.OptionsFlow):
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
-    ) -> config_entries.FlowResult:
+    ) -> Any:
         """Initial options step - core selections before sensors."""
         errors: dict[str, str] = {}
 
@@ -515,7 +512,7 @@ class ClimateReactOptionsFlow(config_entries.OptionsFlow):
 
     async def async_step_sensors(
         self, user_input: dict[str, Any] | None = None
-    ) -> config_entries.FlowResult:
+    ) -> Any:
         """Second options step - sensors/entities based on toggles."""
         if not self._step1_data:
             return await self.async_step_init()
@@ -525,7 +522,6 @@ class ClimateReactOptionsFlow(config_entries.OptionsFlow):
         use_external_temp = self._step1_data.get(CONF_USE_EXTERNAL_TEMP_SENSOR, DEFAULT_USE_EXTERNAL_TEMP_SENSOR)
         use_humidity = self._step1_data.get(CONF_USE_HUMIDITY, DEFAULT_USE_HUMIDITY)
         use_external_humidity = self._step1_data.get(CONF_USE_EXTERNAL_HUMIDITY_SENSOR, DEFAULT_USE_EXTERNAL_HUMIDITY_SENSOR)
-        ac_humidity_controls = self._step1_data.get(CONF_AC_HUMIDITY_CONTROLS, DEFAULT_AC_HUMIDITY_CONTROLS)
         light_control = self._step1_data.get(CONF_ENABLE_LIGHT_CONTROL, DEFAULT_ENABLE_LIGHT_CONTROL)
 
         if user_input is not None:

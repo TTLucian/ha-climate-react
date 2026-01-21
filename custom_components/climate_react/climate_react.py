@@ -6,11 +6,10 @@ import logging
 from datetime import datetime, timedelta
 from typing import Any, Callable
 
-from homeassistant.components.climate import HVACMode
 from homeassistant.components import logbook
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN
-from homeassistant.core import Event, HomeAssistant, State, callback
+from homeassistant.core import Event, EventStateChangedData, HomeAssistant, State, callback
 from homeassistant.helpers.event import async_track_state_change_event
 
 from .const import (
@@ -80,7 +79,7 @@ class ClimateReactController:
         self._warned_horizontal_service_missing = False
         self._climate_min_temp: float | None = None
         self._climate_max_temp: float | None = None
-        self._last_mode_change_time: float | None = None
+        self._last_mode_change_time: datetime | None = None
         self._last_set_hvac_mode: str | None = None
         self._timer_minutes: int = max(0, int(self.config.get(CONF_TIMER_MINUTES, DEFAULT_TIMER_MINUTES)))
         self._timer_task: asyncio.Task | None = None
@@ -183,8 +182,8 @@ class ClimateReactController:
 
     def _notify_timer_listeners(self) -> None:
         """Notify timer listeners of an update."""
-        for callback in list(self._timer_listeners):
-            callback()
+        for listener in list(self._timer_listeners):
+            listener()
 
     def _can_change_mode(self) -> bool:
         """Check if minimum run time has elapsed since last mode change."""
@@ -327,9 +326,9 @@ class ClimateReactController:
         _LOGGER.debug("Option updated for %s: %s = %s", self.climate_entity, key, value)
 
     @callback
-    async def _async_climate_available(self, event: Event) -> None:
+    async def _async_climate_available(self, event: Event[EventStateChangedData]) -> None:
         """Handle climate entity becoming available."""
-        new_state: State = event.data.get("new_state")
+        new_state: State | None = event.data.get("new_state")
         if not new_state or new_state.state in (STATE_UNAVAILABLE, STATE_UNKNOWN):
             return
         await self._async_sync_thresholds_to_climate(new_state)
@@ -390,12 +389,12 @@ class ClimateReactController:
             self.hass.config_entries.async_update_entry(self.entry, options=new_options)
 
     @callback
-    async def _async_temperature_changed(self, event: Event) -> None:
+    async def _async_temperature_changed(self, event: Event[EventStateChangedData]) -> None:
         """Handle temperature sensor state change.
 
         Always capture the reading for UI attributes; only run automation when enabled.
         """
-        new_state: State = event.data.get("new_state")
+        new_state: State | None = event.data.get("new_state")
         if not new_state or new_state.state in (STATE_UNAVAILABLE, STATE_UNKNOWN):
             return
 
@@ -420,9 +419,10 @@ class ClimateReactController:
         except (ValueError, TypeError) as err:
             _LOGGER.warning("Invalid temperature state: %s (%s)", new_state.state, err)
 
-    async def _async_climate_state_changed(self, event: Event) -> None:
+    @callback
+    async def _async_climate_state_changed(self, event: Event[EventStateChangedData]) -> None:
         """Detect manual mode changes outside of automation."""
-        new_state: State = event.data.get("new_state")
+        new_state: State | None = event.data.get("new_state")
         if not new_state or new_state.state in (STATE_UNAVAILABLE, STATE_UNKNOWN):
             return
 
@@ -450,13 +450,13 @@ class ClimateReactController:
             await self._async_apply_light_behavior(enabled=False)
 
     @callback
-    async def _async_humidity_changed(self, event: Event) -> None:
+    async def _async_humidity_changed(self, event: Event[EventStateChangedData]) -> None:
         """Handle humidity sensor state change.
 
         Always capture the reading for UI attributes; only run automation when enabled.
         """
 
-        new_state: State = event.data.get("new_state")
+        new_state: State | None = event.data.get("new_state")
         if not new_state or new_state.state in (STATE_UNAVAILABLE, STATE_UNKNOWN):
             return
 
@@ -733,6 +733,7 @@ class ClimateReactController:
         light_behavior = self.light_behavior
         toggle_light = light_entity and light_behavior != LIGHT_BEHAVIOR_UNCHANGED
         if toggle_light:
+            assert light_entity is not None
             await self._async_set_light(light_entity, "off")
             if delay_seconds > 0:
                 await asyncio.sleep(delay_seconds)
@@ -880,6 +881,7 @@ class ClimateReactController:
                         self._warned_horizontal_service_missing = True
 
         if toggle_light:
+            assert light_entity is not None
             await self._async_set_light(light_entity, "on")
             if delay_seconds > 0:
                 await asyncio.sleep(delay_seconds)

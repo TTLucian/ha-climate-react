@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
 
 from homeassistant.components.number import NumberEntity, NumberMode
 from homeassistant.config_entries import ConfigEntry
@@ -12,10 +11,8 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .climate_react import ClimateReactController
 from .const import (
-    CONF_CLIMATE_ENTITY,
     CONF_DELAY_BETWEEN_COMMANDS,
     CONF_HUMIDIFIER_ENTITY,
-    CONF_HUMIDITY_SENSOR,
     CONF_MAX_HUMIDITY,
     CONF_MAX_TEMP,
     CONF_MIN_HUMIDITY,
@@ -71,6 +68,7 @@ class ClimateReactBaseNumber(NumberEntity):
 
     _attr_has_entity_name = True
     _attr_mode = NumberMode.BOX
+    _config_key: str
 
     def __init__(self, controller: ClimateReactController, entry: ConfigEntry) -> None:
         """Initialize the number entity."""
