@@ -34,12 +34,12 @@ jobs:
       # 4️⃣ Lint & auto-fix with Ruff
       - name: Lint & auto-fix with Ruff
         run: |
-          python -m ruff check custom_components/solar_ac_controller --fix
+          python -m ruff check custom_components/climate_react --fix
 
       # 5️⃣ Format code with Black
       - name: Format code with Black
         run: |
-          python -m black custom_components/solar_ac_controller
+          python -m black custom_components/climate_react
 
       # 6️⃣ Validate Home Assistant integration
       - name: Validate HA integration
@@ -54,7 +54,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add custom_components/solar_ac_controller
+          git add custom_components/climate_react
           if ! git diff --cached --quiet; then
             git commit -m "Auto-fix code style with Ruff & Black"
             git push
