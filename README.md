@@ -9,7 +9,7 @@
 
 A Home Assistant custom integration that automatically controls your HVAC system based on temperature and humidity thresholds. Inspired by Sensibo's Climate React feature with extended functionality.
 
-## 🌟 Features1
+## 🌟 Features
 
 - **Automatic Temperature Control**: Switch between heating/cooling based on sensor readings
 - **Humidity Management**: Automatic dehumidification and humidification with humidifier entity support
