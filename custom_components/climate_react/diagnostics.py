@@ -1,4 +1,5 @@
 """Diagnostics support for Climate React integration."""
+
 from __future__ import annotations
 
 from typing import Any
@@ -39,7 +40,9 @@ async def async_get_config_entry_diagnostics(
     hass: HomeAssistant, entry: ConfigEntry
 ) -> dict[str, Any]:
     """Return diagnostics for a config entry."""
-    controller: ClimateReactController = hass.data[DOMAIN][entry.entry_id][DATA_COORDINATOR]
+    controller: ClimateReactController = hass.data[DOMAIN][entry.entry_id][
+        DATA_COORDINATOR
+    ]
     config = controller.config
 
     diagnostics_data = {
@@ -48,10 +51,14 @@ async def async_get_config_entry_diagnostics(
         "configuration": async_redact_data(
             {
                 CONF_CLIMATE_ENTITY: entry.data.get(CONF_CLIMATE_ENTITY),
-                CONF_USE_EXTERNAL_TEMP_SENSOR: entry.data.get(CONF_USE_EXTERNAL_TEMP_SENSOR),
+                CONF_USE_EXTERNAL_TEMP_SENSOR: entry.data.get(
+                    CONF_USE_EXTERNAL_TEMP_SENSOR
+                ),
                 CONF_TEMPERATURE_SENSOR: entry.data.get(CONF_TEMPERATURE_SENSOR),
                 CONF_USE_HUMIDITY: entry.data.get(CONF_USE_HUMIDITY),
-                CONF_USE_EXTERNAL_HUMIDITY_SENSOR: entry.data.get(CONF_USE_EXTERNAL_HUMIDITY_SENSOR),
+                CONF_USE_EXTERNAL_HUMIDITY_SENSOR: entry.data.get(
+                    CONF_USE_EXTERNAL_HUMIDITY_SENSOR
+                ),
                 CONF_HUMIDITY_SENSOR: entry.data.get(CONF_HUMIDITY_SENSOR),
                 CONF_HUMIDIFIER_ENTITY: entry.data.get(CONF_HUMIDIFIER_ENTITY),
             },
@@ -95,7 +102,11 @@ async def async_get_config_entry_diagnostics(
             "last_temperature": controller._last_temp,
             "last_humidity": controller._last_humidity,
             "last_set_hvac_mode": controller._last_set_hvac_mode,
-            "last_mode_change_time": str(controller._last_mode_change_time) if controller._last_mode_change_time else None,
+            "last_mode_change_time": (
+                str(controller._last_mode_change_time)
+                if controller._last_mode_change_time
+                else None
+            ),
         },
     }
 
