@@ -1,4 +1,4 @@
-name-template: 'v$NEXT_PATCH_VERSION 🌞 Solar AC'
+name-template: 'v$NEXT_PATCH_VERSION Climate React'
 tag-template: 'v$NEXT_PATCH_VERSION'
 
 categories:
