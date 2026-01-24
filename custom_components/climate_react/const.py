@@ -39,6 +39,7 @@ CONF_LIGHT_BEHAVIOR = "light_behavior"
 CONF_LIGHT_SELECT_ON_OPTION = "light_select_on_option"
 CONF_LIGHT_SELECT_OFF_OPTION = "light_select_off_option"
 CONF_TIMER_MINUTES = "timer_minutes"
+CONF_TIMER_EXPIRY = "timer_expiry"
 
 # Default values
 DEFAULT_MIN_TEMP = 18.0

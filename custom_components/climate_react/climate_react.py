@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from datetime import datetime, timedelta
 from typing import Any, Callable
 
@@ -22,48 +23,49 @@ from homeassistant.helpers.event import async_track_state_change_event
 from .const import (
     CONF_CLIMATE_ENTITY,
     CONF_DELAY_BETWEEN_COMMANDS,
+    CONF_ENABLE_LIGHT_CONTROL,
     CONF_ENABLED,
     CONF_FAN_HIGH_HUMIDITY,
     CONF_FAN_HIGH_TEMP,
     CONF_FAN_LOW_TEMP,
     CONF_HUMIDIFIER_ENTITY,
     CONF_HUMIDITY_SENSOR,
-    CONF_MIN_RUN_TIME,
-    CONF_USE_EXTERNAL_HUMIDITY_SENSOR,
-    CONF_USE_EXTERNAL_TEMP_SENSOR,
-    CONF_USE_HUMIDITY,
-    CONF_ENABLE_LIGHT_CONTROL,
-    CONF_LIGHT_ENTITY,
     CONF_LIGHT_BEHAVIOR,
+    CONF_LIGHT_ENTITY,
     CONF_MAX_HUMIDITY,
     CONF_MAX_TEMP,
     CONF_MIN_HUMIDITY,
+    CONF_MIN_RUN_TIME,
     CONF_MIN_TEMP,
     CONF_MODE_HIGH_HUMIDITY,
     CONF_MODE_HIGH_TEMP,
     CONF_MODE_LOW_TEMP,
     CONF_SWING_HIGH_HUMIDITY,
     CONF_SWING_HIGH_TEMP,
-    CONF_SWING_LOW_TEMP,
     CONF_SWING_HORIZONTAL_HIGH_HUMIDITY,
     CONF_SWING_HORIZONTAL_HIGH_TEMP,
     CONF_SWING_HORIZONTAL_LOW_TEMP,
-    CONF_TEMPERATURE_SENSOR,
+    CONF_SWING_LOW_TEMP,
     CONF_TEMP_HIGH_HUMIDITY,
     CONF_TEMP_HIGH_TEMP,
     CONF_TEMP_LOW_TEMP,
+    CONF_TEMPERATURE_SENSOR,
+    CONF_TIMER_EXPIRY,
     CONF_TIMER_MINUTES,
+    CONF_USE_EXTERNAL_HUMIDITY_SENSOR,
+    CONF_USE_EXTERNAL_TEMP_SENSOR,
+    CONF_USE_HUMIDITY,
     DEFAULT_DELAY_BETWEEN_COMMANDS,
-    DEFAULT_ENABLED,
     DEFAULT_ENABLE_LIGHT_CONTROL,
+    DEFAULT_ENABLED,
     DEFAULT_LIGHT_BEHAVIOR,
     DEFAULT_MIN_RUN_TIME,
     DEFAULT_TIMER_MINUTES,
     DOMAIN,
-    MODE_OFF,
-    LIGHT_BEHAVIOR_ON,
     LIGHT_BEHAVIOR_OFF,
+    LIGHT_BEHAVIOR_ON,
     LIGHT_BEHAVIOR_UNCHANGED,
+    MODE_OFF,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -88,19 +90,54 @@ class ClimateReactController:
         self._climate_max_temp: float | None = None
         self._last_mode_change_time: datetime | None = None
         self._last_set_hvac_mode: str | None = None
-        self._timer_minutes: int = max(
-            0, int(self.config.get(CONF_TIMER_MINUTES, DEFAULT_TIMER_MINUTES))
-        )
+        self._cached_config: dict[str, Any] | None = None  # Cache for merged config
+        # Initialize timer expiry timestamp (migrate from old minutes format if needed)
+        config_data = {**entry.data, **entry.options}
+        self._timer_expiry: float | None = None
+
+        # Check for new expiry format first
+        expiry_value = config_data.get(CONF_TIMER_EXPIRY)
+        if expiry_value is not None:
+            self._timer_expiry = float(expiry_value)
+        else:
+            # Migrate from old minutes format
+            old_minutes = config_data.get(CONF_TIMER_MINUTES, DEFAULT_TIMER_MINUTES)
+            if old_minutes > 0:
+                self._timer_expiry = time.time() + (old_minutes * 60)
+                # Persist the migration to new format
+                new_options = {**entry.options}
+                new_options[CONF_TIMER_EXPIRY] = self._timer_expiry
+                new_options[CONF_TIMER_MINUTES] = 0  # Clear old format
+                self.hass.config_entries.async_update_entry(entry, options=new_options)
+
         self._timer_task: asyncio.Task | None = None
         self._timer_listeners: list[Callable[[], None]] = []
         self._light_control_enabled: bool = bool(
-            self.config.get(CONF_ENABLE_LIGHT_CONTROL, DEFAULT_ENABLE_LIGHT_CONTROL)
+            config_data.get(CONF_ENABLE_LIGHT_CONTROL, DEFAULT_ENABLE_LIGHT_CONTROL)
         )
 
     @property
     def config(self) -> dict[str, Any]:
         """Get merged configuration (data + options)."""
-        return {**self.entry.data, **self.entry.options}
+        if not hasattr(self, "_cached_config") or self._cached_config is None:
+            self._cached_config = {**self.entry.data, **self.entry.options}
+        return self._cached_config
+
+    @property
+    def _min_run_time_minutes(self) -> int:
+        """Get cached minimum run time in minutes."""
+        if not hasattr(self, "_cached_min_run_time"):
+            self._cached_min_run_time = self.config.get(
+                CONF_MIN_RUN_TIME, DEFAULT_MIN_RUN_TIME
+            )
+        return self._cached_min_run_time
+
+    def _invalidate_config_cache(self) -> None:
+        """Invalidate the config cache when options are updated."""
+        self._cached_config = None
+        # Clear cached derived values
+        if hasattr(self, "_cached_min_run_time"):
+            delattr(self, "_cached_min_run_time")
 
     def _get_switch_entity_id(self) -> str:
         """Get the switch entity ID for logbook entries."""
@@ -176,10 +213,17 @@ class ClimateReactController:
         entity_name = climate_entity.split(".")[-1].replace("_", " ").title()
         return f"Climate React {entity_name}"
 
+    def get_room_name(self) -> str:
+        """Get the room name from the climate entity ID for use in entity IDs."""
+        return self.climate_entity.split(".")[-1]
+
     @property
     def timer_minutes(self) -> int:
-        """Return remaining timer minutes."""
-        return self._timer_minutes
+        """Return remaining timer minutes calculated from expiry timestamp."""
+        if self._timer_expiry is None:
+            return 0
+        remaining_seconds = max(0, self._timer_expiry - time.time())
+        return int(remaining_seconds // 60)
 
     def add_timer_listener(self, callback: Callable[[], None]) -> Callable[[], None]:
         """Register a callback to be notified on timer updates."""
@@ -201,11 +245,8 @@ class ClimateReactController:
         if self._last_mode_change_time is None:
             return True
 
-        config = self.config
-        min_run_time = config.get(CONF_MIN_RUN_TIME, DEFAULT_MIN_RUN_TIME)
         elapsed = datetime.now() - self._last_mode_change_time
-
-        return elapsed >= timedelta(minutes=min_run_time)
+        return elapsed >= timedelta(minutes=self._min_run_time_minutes)
 
     async def async_setup(self) -> None:
         """Set up the controller."""
@@ -285,7 +326,7 @@ class ClimateReactController:
     async def async_disable(self) -> None:
         """Disable Climate React."""
         self._enabled = False
-        if self._timer_minutes > 0 and self._is_climate_off():
+        if self.timer_minutes > 0 and self._is_climate_off():
             await self.async_set_timer(0)
         await self._async_apply_light_behavior(enabled=False)
         _LOGGER.info("Climate React disabled for %s", self.climate_entity)
@@ -303,6 +344,7 @@ class ClimateReactController:
         new_options = {**self.entry.options}
         new_options[CONF_ENABLE_LIGHT_CONTROL] = enabled
         self.hass.config_entries.async_update_entry(self.entry, options=new_options)
+        self._invalidate_config_cache()
         _LOGGER.info(
             "Light control %s for %s",
             "enabled" if enabled else "disabled",
@@ -327,6 +369,7 @@ class ClimateReactController:
             new_options[CONF_MAX_HUMIDITY] = data["max_humidity"]
 
         self.hass.config_entries.async_update_entry(self.entry, options=new_options)
+        self._invalidate_config_cache()
 
         # Re-evaluate state with new thresholds
         await self._async_evaluate_state()
@@ -338,6 +381,7 @@ class ClimateReactController:
         new_options = {**self.entry.options}
         new_options[key] = value
         self.hass.config_entries.async_update_entry(self.entry, options=new_options)
+        self._invalidate_config_cache()
         _LOGGER.debug("Option updated for %s: %s = %s", self.climate_entity, key, value)
 
     @callback
@@ -410,6 +454,7 @@ class ClimateReactController:
 
         if needs_update:
             self.hass.config_entries.async_update_entry(self.entry, options=new_options)
+            self._invalidate_config_cache()
 
     @callback
     async def _async_temperature_changed(
@@ -458,7 +503,7 @@ class ClimateReactController:
         # If automation is disabled and a timer is running, reset when climate is off
         if (
             not self._enabled
-            and self._timer_minutes > 0
+            and self.timer_minutes > 0
             and self._is_climate_off_state(new_state)
         ):
             await self.async_set_timer(0)
@@ -1022,10 +1067,10 @@ class ClimateReactController:
             if domain == "select":
                 # For select entities, map on/off to configured select options
                 from .const import (
-                    CONF_LIGHT_SELECT_ON_OPTION,
                     CONF_LIGHT_SELECT_OFF_OPTION,
-                    DEFAULT_LIGHT_SELECT_ON_OPTION,
+                    CONF_LIGHT_SELECT_ON_OPTION,
                     DEFAULT_LIGHT_SELECT_OFF_OPTION,
+                    DEFAULT_LIGHT_SELECT_ON_OPTION,
                 )
 
                 if option == "on":
@@ -1066,7 +1111,7 @@ class ClimateReactController:
             _LOGGER.debug("Failed to set light %s to %s: %s", entity_id, option, exc)
 
     async def async_set_timer(self, minutes: float) -> None:
-        """Set or reset the minute countdown timer."""
+        """Set or reset the minute countdown timer using expiry timestamp."""
         new_minutes = max(0, int(minutes))
 
         # If timer requested while both automation and climate are off, reset to zero
@@ -1078,37 +1123,55 @@ class ClimateReactController:
             self._timer_task.cancel()
             self._timer_task = None
 
-        self._timer_minutes = new_minutes
+        # Calculate expiry timestamp (None for no timer)
+        if new_minutes > 0:
+            self._timer_expiry = time.time() + (new_minutes * 60)
+        else:
+            self._timer_expiry = None
+
         await self._async_persist_timer()
         self._notify_timer_listeners()
 
-        if self._timer_minutes > 0:
+        if self._timer_expiry is not None:
             self._timer_task = self.hass.loop.create_task(self._async_timer_loop())
             _LOGGER.info(
-                "Timer started for %s: %d minutes",
+                "Timer started for %s: %d minutes (expires at %s)",
                 self.climate_entity,
-                self._timer_minutes,
+                new_minutes,
+                datetime.fromtimestamp(self._timer_expiry).isoformat(),
             )
         else:
             _LOGGER.debug("Timer cleared for %s", self.climate_entity)
 
     async def _async_start_timer_if_needed(self) -> None:
-        """Restart timer loop on setup if there is remaining time."""
-        if self._timer_minutes > 0 and not self._timer_task:
+        """Restart timer loop on setup if timer hasn't expired."""
+        if (
+            self._timer_expiry is not None
+            and time.time() < self._timer_expiry
+            and not self._timer_task
+        ):
             self._timer_task = self.hass.loop.create_task(self._async_timer_loop())
 
     async def _async_timer_loop(self) -> None:
-        """Countdown timer loop."""
+        """Timer loop that runs until expiry timestamp."""
         try:
-            while self._timer_minutes > 0:
-                await asyncio.sleep(60)
-                self._timer_minutes -= 1
-                await self._async_persist_timer()
-                self._notify_timer_listeners()
-
-                if self._timer_minutes == 0:
+            while self._timer_expiry is not None:
+                current_time = time.time()
+                if current_time >= self._timer_expiry:
+                    # Timer has expired
                     await self._async_handle_timer_expired()
                     break
+
+                # Sleep until next minute boundary or expiry, whichever comes first
+                remaining_seconds = self._timer_expiry - current_time
+                sleep_time = min(60, remaining_seconds)
+
+                if sleep_time > 0:
+                    await asyncio.sleep(sleep_time)
+
+                # Notify listeners of time update (for UI refresh)
+                self._notify_timer_listeners()
+
         except asyncio.CancelledError:
             _LOGGER.debug("Timer task cancelled for %s", self.climate_entity)
         finally:
@@ -1131,16 +1194,19 @@ class ClimateReactController:
                     blocking=True,
                 )
 
-        self._timer_minutes = 0
+        self._timer_expiry = None
         await self._async_persist_timer()
         self._notify_timer_listeners()
         await self._async_apply_light_behavior(enabled=False)
 
     async def _async_persist_timer(self) -> None:
-        """Persist timer value to config entry options."""
+        """Persist timer expiry timestamp to config entry options."""
         new_options = {**self.entry.options}
-        new_options[CONF_TIMER_MINUTES] = self._timer_minutes
+        new_options[CONF_TIMER_EXPIRY] = self._timer_expiry
+        # Clear old format to avoid confusion
+        new_options[CONF_TIMER_MINUTES] = 0
         self.hass.config_entries.async_update_entry(self.entry, options=new_options)
+        self._invalidate_config_cache()
 
     async def _async_apply_light_behavior(self, enabled: bool) -> None:
         """Apply configured light behavior when automation toggles."""

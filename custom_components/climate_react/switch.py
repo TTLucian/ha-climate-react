@@ -48,7 +48,8 @@ class ClimateReactSwitch(SwitchEntity):
         """Initialize the switch."""
         self._controller = controller
         self._entry = entry
-        self._attr_unique_id = f"{entry.entry_id}_switch"
+        room_name = controller.get_room_name()
+        self._attr_unique_id = f"climate_react_{room_name}"
         self._attr_icon = "mdi:thermostat-off"
         self._attr_device_info = {
             "identifiers": {(DOMAIN, entry.entry_id)},
@@ -78,10 +79,10 @@ class ClimateReactSwitch(SwitchEntity):
     def extra_state_attributes(self) -> dict[str, Any]:
         """Return extra state attributes."""
         from .const import (
-            CONF_MIN_TEMP,
+            CONF_MAX_HUMIDITY,
             CONF_MAX_TEMP,
             CONF_MIN_HUMIDITY,
-            CONF_MAX_HUMIDITY,
+            CONF_MIN_TEMP,
         )
 
         config = self._controller.config
@@ -121,7 +122,8 @@ class ClimateReactLightControlSwitch(SwitchEntity):
         """Initialize the light control switch."""
         self._controller = controller
         self._entry = entry
-        self._attr_unique_id = f"{entry.entry_id}_light_control"
+        room_name = controller.get_room_name()
+        self._attr_unique_id = f"climate_react_{room_name}_light_control"
         self._attr_device_info = {
             "identifiers": {(DOMAIN, entry.entry_id)},
             "name": controller.get_device_name(),
