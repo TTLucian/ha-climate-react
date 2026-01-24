@@ -38,10 +38,10 @@ async def async_setup_entry(
 
 
 class ClimateReactSwitch(SwitchEntity):
-    """Switch to enable/disable Climate React."""
+    """Switch to enable/disable Climate React control."""
 
     _attr_has_entity_name = True
-    _attr_name = "Climate React"
+    _attr_name = "Climate React Control"
     _attr_should_poll = False
 
     def __init__(self, controller: ClimateReactController, entry: ConfigEntry) -> None:
@@ -49,8 +49,7 @@ class ClimateReactSwitch(SwitchEntity):
         self._controller = controller
         self._entry = entry
         room_name = controller.get_room_name()
-        self._attr_unique_id = f"climate_react_{room_name}"
-        self._attr_icon = "mdi:thermostat-off"
+        self._attr_unique_id = f"climate_react_{room_name}_control"
         self._attr_device_info = {
             "identifiers": {(DOMAIN, entry.entry_id)},
             "name": controller.get_device_name(),
@@ -63,15 +62,18 @@ class ClimateReactSwitch(SwitchEntity):
         """Return true if Climate React is enabled."""
         return self._controller.enabled
 
+    @property
+    def icon(self) -> str:
+        """Return the icon for the switch."""
+        return "mdi:thermostat-auto" if self.is_on else "mdi:thermostat-off"
+
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn on Climate React."""
-        self._attr_icon = "mdi:thermostat-auto"
         await self._controller.async_enable()
         self.async_write_ha_state()
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Turn off Climate React."""
-        self._attr_icon = "mdi:thermostat-off"
         await self._controller.async_disable()
         self.async_write_ha_state()
 
