@@ -65,7 +65,7 @@ class ClimateReactSwitch(SwitchEntity):
     @property
     def icon(self) -> str:
         """Return the icon for the switch."""
-        return "mdi:thermostat-auto" if self.is_on else "mdi:thermostat-off"
+        return "mdi:thermostat-cog" if self.is_on else "mdi:thermostat"
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn on Climate React."""
