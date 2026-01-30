@@ -10,10 +10,13 @@ from homeassistant.core import HomeAssistant
 
 from .climate_react import ClimateReactController
 from .const import (
+    BASE_RETRY_DELAY_SECONDS,
     CONF_CLIMATE_ENTITY,
     CONF_DELAY_BETWEEN_COMMANDS,
     CONF_HUMIDIFIER_ENTITY,
     CONF_HUMIDITY_SENSOR,
+    CONF_LAST_MODE_CHANGE_TIME,
+    CONF_LAST_SET_HVAC_MODE,
     CONF_MAX_HUMIDITY,
     CONF_MAX_TEMP,
     CONF_MIN_HUMIDITY,
@@ -25,6 +28,7 @@ from .const import (
     CONF_USE_HUMIDITY,
     DATA_COORDINATOR,
     DOMAIN,
+    MAX_RETRY_ATTEMPTS,
 )
 
 # Redact device IDs and sensor entity IDs in diagnostics
@@ -97,6 +101,8 @@ async def async_get_config_entry_diagnostics(
         "timing": {
             "delay_between_commands_ms": config.get(CONF_DELAY_BETWEEN_COMMANDS),
             "min_run_time_minutes": config.get(CONF_MIN_RUN_TIME),
+            "max_retry_attempts": MAX_RETRY_ATTEMPTS,
+            "base_retry_delay_seconds": BASE_RETRY_DELAY_SECONDS,
         },
         "current_state": {
             "last_temperature": controller._last_temp,
@@ -106,6 +112,34 @@ async def async_get_config_entry_diagnostics(
                 str(controller._last_mode_change_time)
                 if controller._last_mode_change_time
                 else None
+            ),
+        },
+        "persisted_state": {
+            "last_mode_change_time": entry.options.get(CONF_LAST_MODE_CHANGE_TIME),
+            "last_set_hvac_mode": entry.options.get(CONF_LAST_SET_HVAC_MODE),
+        },
+        "configuration_validation": {
+            "entities_exist": all(
+                hass.states.get(entity_id) is not None
+                for entity_id in [
+                    controller.climate_entity,
+                    controller.temperature_sensor,
+                ]
+                + ([controller.humidity_sensor] if controller.humidity_sensor else [])
+                + (
+                    [controller.humidifier_entity]
+                    if controller.humidifier_entity
+                    else []
+                )
+                + ([controller.light_entity] if controller.light_entity else [])
+            ),
+            "temperature_thresholds_valid": (
+                config.get(CONF_MIN_TEMP, 18.0) < config.get(CONF_MAX_TEMP, 26.0)
+            ),
+            "humidity_thresholds_valid": (
+                config.get(CONF_MIN_HUMIDITY, 30) < config.get(CONF_MAX_HUMIDITY, 60)
+                if config.get(CONF_USE_HUMIDITY, False)
+                else True
             ),
         },
     }

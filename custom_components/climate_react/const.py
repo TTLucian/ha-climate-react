@@ -38,6 +38,8 @@ CONF_LIGHT_ENTITY = "light_entity"
 CONF_LIGHT_BEHAVIOR = "light_behavior"
 CONF_LIGHT_SELECT_ON_OPTION = "light_select_on_option"
 CONF_LIGHT_SELECT_OFF_OPTION = "light_select_off_option"
+CONF_LAST_MODE_CHANGE_TIME = "last_mode_change_time"
+CONF_LAST_SET_HVAC_MODE = "last_set_hvac_mode"
 CONF_TIMER_MINUTES = "timer_minutes"
 CONF_TIMER_EXPIRY = "timer_expiry"
 
@@ -84,3 +86,20 @@ MODE_FAN_ONLY = "fan_only"
 # Data keys
 DATA_COORDINATOR = "coordinator"
 DATA_UNSUB = "unsub"
+
+# Circuit breaker constants
+CIRCUIT_BREAKER_MAX_FAILURES = 3
+CIRCUIT_BREAKER_TIMEOUT_SECONDS = 300
+
+# Service call retry constants
+MAX_RETRY_ATTEMPTS = 3
+BASE_RETRY_DELAY_SECONDS = 1
+
+# State logging constants
+MAX_STATE_LOG_ENTRIES = 20
+
+# Capability cache constants
+CAPABILITY_CACHE_DURATION_SECONDS = 300
+
+# Task throttling constants
+MAX_CONCURRENT_BACKGROUND_TASKS = 10
