@@ -180,6 +180,9 @@ class ClimateReactController:
 
         # Task queue for efficient background processing
         # Queue holds asyncio.Task objects to ensure consistent cancellation/awaiting
+        # Invariant: items pushed into this queue are `asyncio.Task` instances
+        # created by `self.hass.loop.create_task(coro)`; during shutdown we
+        # drain the queue and cancel those Task objects to release references.
         self._task_queue: asyncio.Queue = asyncio.Queue(maxsize=100)
         # Metrics
         self._dropped_task_count: int = 0
@@ -310,7 +313,15 @@ class ClimateReactController:
                         self._debug("Background task was cancelled")
                     except Exception as e:
                         _LOGGER.exception("Task processing error: %s", e)
+            except asyncio.CancelledError:
+                # The processor was explicitly cancelled; exit gracefully
+                self._debug("Task processor cancelled")
+                break
+            except RuntimeError as e:
+                # Runtime errors often indicate loop/state issues; log and continue
+                _LOGGER.exception("Runtime error in task processor: %s", e)
             except Exception as e:
+                # Catch-all for truly unexpected errors but keep explicit logging
                 _LOGGER.exception("Unexpected error in task processor: %s", e)
 
     @property
@@ -335,6 +346,17 @@ class ClimateReactController:
             return False
         state = self.hass.states.get(entity_id)
         return state is not None
+
+    def register_state_listener(
+        self, entity_ids: list[str], callback: Callable
+    ) -> Callable[[], None]:
+        """Register a state-change listener and return an unsubscribe callable.
+
+        This centralizes the use of `async_track_state_change_event` so entity
+        classes can use `controller.register_state_listener(...)` and avoid
+        repeating registration/unregistration logic.
+        """
+        return async_track_state_change_event(self.hass, entity_ids, callback)
 
     def _get_switch_entity_id(self) -> str:
         """Get the switch entity ID for logbook entries."""
@@ -1004,10 +1026,16 @@ class ClimateReactController:
                 if isinstance(task, asyncio.Task):
                     try:
                         task.cancel()
-                    except Exception:
-                        self._debug(
-                            "Failed to cancel queued task during shutdown",
-                            exc_info=True,
+                    except RuntimeError as exc:
+                        # Cancellation failed due to runtime issues; log explicitly
+                        _LOGGER.exception(
+                            "RuntimeError cancelling queued task during shutdown: %s",
+                            exc,
+                        )
+                    except Exception as exc:
+                        # Defensive catch for other unexpected issues during shutdown
+                        _LOGGER.exception(
+                            "Failed to cancel queued task during shutdown: %s", exc
                         )
         except asyncio.QueueEmpty:
             pass

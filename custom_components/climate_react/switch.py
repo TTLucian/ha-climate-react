@@ -30,7 +30,6 @@ async def async_setup_entry(
     ]
     entities: list[SwitchEntity] = [ClimateReactSwitch(controller, entry)]
     async_add_entities(entities, True)
-    async_add_entities(entities, True)
 
 
 class ClimateReactSwitch(SwitchEntity):

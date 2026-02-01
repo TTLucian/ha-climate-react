@@ -11,7 +11,6 @@ from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import entity_registry
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.event import async_track_state_change_event
 
 from .climate_react import ClimateReactController
 from .const import (
@@ -207,10 +206,10 @@ async def async_setup_entry(
             )
             async_add_entities(to_add, True)
 
-    _state["unsub_climate"] = async_track_state_change_event(
-        hass,
-        [controller.climate_entity],
-        _on_climate_change,
+    # Centralized registration via controller helper to avoid repeating
+    # direct `async_track_state_change_event` usage across entities.
+    _state["unsub_climate"] = controller.register_state_listener(
+        [controller.climate_entity], _on_climate_change
     )
     entry.async_on_unload(_state["unsub_climate"])
 
@@ -246,10 +245,9 @@ class ClimateReactBaseSelect(SelectEntity):
         await super().async_added_to_hass()
 
         # Track climate entity to refresh supported options dynamically
-        self._unsub_climate = async_track_state_change_event(
-            self.hass,
-            [self._controller.climate_entity],
-            self._async_climate_changed,
+        # Use controller helper to centralize listener management
+        self._unsub_climate = self._controller.register_state_listener(
+            [self._controller.climate_entity], self._async_climate_changed
         )
 
         # Initialize options based on current climate state
