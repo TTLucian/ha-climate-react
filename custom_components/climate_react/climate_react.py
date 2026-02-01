@@ -895,6 +895,20 @@ class ClimateReactController:
                 self._timer_task = None
 
         # Cancel task processor
+        # Drain task queue to release coroutine references and avoid memory leaks
+        try:
+            while True:
+                coro = self._task_queue.get_nowait()
+                # If a Task was queued, cancel it explicitly
+                if isinstance(coro, asyncio.Task):
+                    try:
+                        coro.cancel()
+                    except Exception:
+                        pass
+        except Exception:
+            # QueueEmpty or other errors — ignore and proceed with shutdown
+            pass
+
         if self._task_processor_task and not self._task_processor_task.done():
             self._task_processor_task.cancel()
             try:
