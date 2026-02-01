@@ -329,8 +329,8 @@ class ClimateReactModeLowTempSelect(ClimateReactBaseSelect):
     def __init__(self, controller: ClimateReactController, entry: ConfigEntry) -> None:
         """Initialize the select."""
         super().__init__(controller, entry)
-        room_name = controller.get_room_name()
-        self._attr_unique_id = f"climate_react_{room_name}_mode_low_temp"
+        suffix = controller._entity_suffix()
+        self._attr_unique_id = f"climate_react_{suffix}_mode_low_temp"
         config = {**entry.data, **entry.options}
         self._attr_current_option = config.get(CONF_MODE_LOW_TEMP, "heat")
 
@@ -347,8 +347,8 @@ class ClimateReactModeHighTempSelect(ClimateReactBaseSelect):
     def __init__(self, controller: ClimateReactController, entry: ConfigEntry) -> None:
         """Initialize the select."""
         super().__init__(controller, entry)
-        room_name = controller.get_room_name()
-        self._attr_unique_id = f"climate_react_{room_name}_mode_high_temp"
+        suffix = controller._entity_suffix()
+        self._attr_unique_id = f"climate_react_{suffix}_mode_high_temp"
         config = {**entry.data, **entry.options}
         self._attr_current_option = config.get(CONF_MODE_HIGH_TEMP, "cool")
 
@@ -365,8 +365,8 @@ class ClimateReactModeHighHumiditySelect(ClimateReactBaseSelect):
     def __init__(self, controller: ClimateReactController, entry: ConfigEntry) -> None:
         """Initialize the select."""
         super().__init__(controller, entry)
-        room_name = controller.get_room_name()
-        self._attr_unique_id = f"climate_react_{room_name}_mode_high_humidity"
+        suffix = controller._entity_suffix()
+        self._attr_unique_id = f"climate_react_{suffix}_mode_high_humidity"
         config = {**entry.data, **entry.options}
         self._attr_current_option = config.get(CONF_MODE_HIGH_HUMIDITY, "dry")
 
@@ -385,8 +385,8 @@ class ClimateReactFanLowTempSelect(ClimateReactBaseSelect):
     def __init__(self, controller: ClimateReactController, entry: ConfigEntry) -> None:
         """Initialize the select."""
         super().__init__(controller, entry)
-        room_name = controller.get_room_name()
-        self._attr_unique_id = f"climate_react_{room_name}_fan_low_temp"
+        suffix = controller._entity_suffix()
+        self._attr_unique_id = f"climate_react_{suffix}_fan_low_temp"
         config = {**entry.data, **entry.options}
         self._attr_current_option = config.get(CONF_FAN_LOW_TEMP, "auto")
 
@@ -402,8 +402,8 @@ class ClimateReactFanHighTempSelect(ClimateReactBaseSelect):
     def __init__(self, controller: ClimateReactController, entry: ConfigEntry) -> None:
         """Initialize the select."""
         super().__init__(controller, entry)
-        room_name = controller.get_room_name()
-        self._attr_unique_id = f"climate_react_{room_name}_fan_high_temp"
+        suffix = controller._entity_suffix()
+        self._attr_unique_id = f"climate_react_{suffix}_fan_high_temp"
         config = {**entry.data, **entry.options}
         self._attr_current_option = config.get(CONF_FAN_HIGH_TEMP, "auto")
 
@@ -419,8 +419,8 @@ class ClimateReactFanHighHumiditySelect(ClimateReactBaseSelect):
     def __init__(self, controller: ClimateReactController, entry: ConfigEntry) -> None:
         """Initialize the select."""
         super().__init__(controller, entry)
-        room_name = controller.get_room_name()
-        self._attr_unique_id = f"climate_react_{room_name}_fan_high_humidity"
+        suffix = controller._entity_suffix()
+        self._attr_unique_id = f"climate_react_{suffix}_fan_high_humidity"
         config = {**entry.data, **entry.options}
         self._attr_current_option = config.get(CONF_FAN_HIGH_HUMIDITY, "auto")
 
@@ -439,8 +439,8 @@ class ClimateReactSwingLowTempSelect(ClimateReactBaseSelect):
     def __init__(self, controller: ClimateReactController, entry: ConfigEntry) -> None:
         """Initialize the select."""
         super().__init__(controller, entry)
-        room_name = controller.get_room_name()
-        self._attr_unique_id = f"climate_react_{room_name}_swing_low_temp"
+        suffix = controller._entity_suffix()
+        self._attr_unique_id = f"climate_react_{suffix}_swing_low_temp"
         config = {**entry.data, **entry.options}
         self._attr_current_option = config.get(CONF_SWING_LOW_TEMP, "off")
 
@@ -456,8 +456,8 @@ class ClimateReactSwingHighTempSelect(ClimateReactBaseSelect):
     def __init__(self, controller: ClimateReactController, entry: ConfigEntry) -> None:
         """Initialize the select."""
         super().__init__(controller, entry)
-        room_name = controller.get_room_name()
-        self._attr_unique_id = f"climate_react_{room_name}_swing_high_temp"
+        suffix = controller._entity_suffix()
+        self._attr_unique_id = f"climate_react_{suffix}_swing_high_temp"
         config = {**entry.data, **entry.options}
         self._attr_current_option = config.get(CONF_SWING_HIGH_TEMP, "off")
 
@@ -473,8 +473,8 @@ class ClimateReactSwingHighHumiditySelect(ClimateReactBaseSelect):
     def __init__(self, controller: ClimateReactController, entry: ConfigEntry) -> None:
         """Initialize the select."""
         super().__init__(controller, entry)
-        room_name = controller.get_room_name()
-        self._attr_unique_id = f"climate_react_{room_name}_swing_high_humidity"
+        suffix = controller._entity_suffix()
+        self._attr_unique_id = f"climate_react_{suffix}_swing_high_humidity"
         config = {**entry.data, **entry.options}
         self._attr_current_option = config.get(CONF_SWING_HIGH_HUMIDITY, "off")
 
@@ -490,8 +490,8 @@ class ClimateReactSwingHorizontalLowTempSelect(ClimateReactBaseSelect):
     def __init__(self, controller: ClimateReactController, entry: ConfigEntry) -> None:
         """Initialize the select."""
         super().__init__(controller, entry)
-        room_name = controller.get_room_name()
-        self._attr_unique_id = f"climate_react_{room_name}_swing_horizontal_low_temp"
+        suffix = controller._entity_suffix()
+        self._attr_unique_id = f"climate_react_{suffix}_swing_horizontal_low_temp"
         config = {**entry.data, **entry.options}
         self._attr_current_option = config.get(CONF_SWING_HORIZONTAL_LOW_TEMP)
 
@@ -507,8 +507,8 @@ class ClimateReactSwingHorizontalHighTempSelect(ClimateReactBaseSelect):
     def __init__(self, controller: ClimateReactController, entry: ConfigEntry) -> None:
         """Initialize the select."""
         super().__init__(controller, entry)
-        room_name = controller.get_room_name()
-        self._attr_unique_id = f"climate_react_{room_name}_swing_horizontal_high_temp"
+        suffix = controller._entity_suffix()
+        self._attr_unique_id = f"climate_react_{suffix}_swing_horizontal_high_temp"
         config = {**entry.data, **entry.options}
         self._attr_current_option = config.get(CONF_SWING_HORIZONTAL_HIGH_TEMP)
 
@@ -524,10 +524,8 @@ class ClimateReactSwingHorizontalHighHumiditySelect(ClimateReactBaseSelect):
     def __init__(self, controller: ClimateReactController, entry: ConfigEntry) -> None:
         """Initialize the select."""
         super().__init__(controller, entry)
-        room_name = controller.get_room_name()
-        self._attr_unique_id = (
-            f"climate_react_{room_name}_swing_horizontal_high_humidity"
-        )
+        suffix = controller._entity_suffix()
+        self._attr_unique_id = f"climate_react_{suffix}_swing_horizontal_high_humidity"
         config = {**entry.data, **entry.options}
         self._attr_current_option = config.get(CONF_SWING_HORIZONTAL_HIGH_HUMIDITY)
 
@@ -543,8 +541,8 @@ class ClimateReactLightBehaviorSelect(ClimateReactBaseSelect):
     def __init__(self, controller: ClimateReactController, entry: ConfigEntry) -> None:
         """Initialize the select."""
         super().__init__(controller, entry)
-        room_name = controller.get_room_name()
-        self._attr_unique_id = f"climate_react_{room_name}_light_behavior"
+        suffix = controller._entity_suffix()
+        self._attr_unique_id = f"climate_react_{suffix}_light_behavior"
         config = {**entry.data, **entry.options}
         self._allowed_options = [
             LIGHT_BEHAVIOR_ON,
@@ -580,8 +578,8 @@ class ClimateReactModeLowHumiditySelect(ClimateReactBaseSelect):
     def __init__(self, controller: ClimateReactController, entry: ConfigEntry) -> None:
         """Initialize the select."""
         super().__init__(controller, entry)
-        room_name = controller.get_room_name()
-        self._attr_unique_id = f"climate_react_{room_name}_mode_low_humidity"
+        suffix = controller._entity_suffix()
+        self._attr_unique_id = f"climate_react_{suffix}_mode_low_humidity"
 
     def _refresh_options(self, state) -> None:
         options = []
@@ -602,8 +600,8 @@ class ClimateReactFanLowHumiditySelect(ClimateReactBaseSelect):
     def __init__(self, controller: ClimateReactController, entry: ConfigEntry) -> None:
         """Initialize the select."""
         super().__init__(controller, entry)
-        room_name = controller.get_room_name()
-        self._attr_unique_id = f"climate_react_{room_name}_fan_low_humidity"
+        suffix = controller._entity_suffix()
+        self._attr_unique_id = f"climate_react_{suffix}_fan_low_humidity"
 
     def _refresh_options(self, state) -> None:
         options = []
@@ -620,8 +618,8 @@ class ClimateReactSwingLowHumiditySelect(ClimateReactBaseSelect):
     def __init__(self, controller: ClimateReactController, entry: ConfigEntry) -> None:
         """Initialize the select."""
         super().__init__(controller, entry)
-        room_name = controller.get_room_name()
-        self._attr_unique_id = f"climate_react_{room_name}_swing_low_humidity"
+        suffix = controller._entity_suffix()
+        self._attr_unique_id = f"climate_react_{suffix}_swing_low_humidity"
 
     def _refresh_options(self, state) -> None:
         options = []
@@ -638,10 +636,8 @@ class ClimateReactSwingHorizontalLowHumiditySelect(ClimateReactBaseSelect):
     def __init__(self, controller: ClimateReactController, entry: ConfigEntry) -> None:
         """Initialize the select."""
         super().__init__(controller, entry)
-        room_name = controller.get_room_name()
-        self._attr_unique_id = (
-            f"climate_react_{room_name}_swing_horizontal_low_humidity"
-        )
+        suffix = controller._entity_suffix()
+        self._attr_unique_id = f"climate_react_{suffix}_swing_horizontal_low_humidity"
 
     def _refresh_options(self, state) -> None:
         options = []

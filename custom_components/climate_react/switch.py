@@ -48,8 +48,8 @@ class ClimateReactSwitch(SwitchEntity):
         """Initialize the switch."""
         self._controller = controller
         self._entry = entry
-        room_name = controller.get_room_name()
-        self._attr_unique_id = f"climate_react_{room_name}_control"
+        suffix = controller._entity_suffix()
+        self._attr_unique_id = f"climate_react_{suffix}_control"
         self._attr_device_info = {
             "identifiers": {(DOMAIN, entry.entry_id)},
             "name": controller.get_device_name(),
@@ -124,8 +124,8 @@ class ClimateReactLightControlSwitch(SwitchEntity):
         """Initialize the light control switch."""
         self._controller = controller
         self._entry = entry
-        room_name = controller.get_room_name()
-        self._attr_unique_id = f"climate_react_{room_name}_light_control"
+        suffix = controller._entity_suffix()
+        self._attr_unique_id = f"climate_react_{suffix}_light_control"
         self._attr_device_info = {
             "identifiers": {(DOMAIN, entry.entry_id)},
             "name": controller.get_device_name(),

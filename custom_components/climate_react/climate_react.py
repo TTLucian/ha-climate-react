@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 import time
 from collections import deque
 from datetime import datetime, timedelta
@@ -178,7 +179,14 @@ class ClimateReactController:
         self._task_semaphore = asyncio.Semaphore(MAX_CONCURRENT_BACKGROUND_TASKS)
 
         # Task queue for efficient background processing
+        # Queue holds asyncio.Task objects to ensure consistent cancellation/awaiting
         self._task_queue: asyncio.Queue = asyncio.Queue(maxsize=100)
+        # Metrics
+        self._dropped_task_count: int = 0
+        self._queue_peak: int = 0
+        # Shutdown & processor control
+        self._shutting_down: bool = False
+        self._processor_stop_event: asyncio.Event = asyncio.Event()
         self._task_processor_task: asyncio.Task | None = None
 
         # Pre-allocated common objects for performance
@@ -214,17 +222,48 @@ class ClimateReactController:
             CONF_ENABLE_LIGHT_CONTROL, DEFAULT_ENABLE_LIGHT_CONTROL
         )
 
+    def _debug(self, msg: str, *args: Any, **kwargs: Any) -> None:
+        """Centralized debug logging helper for controller messages.
+
+        Prefixes debug messages with the climate entity id for consistency and
+        forwards all kwargs (such as `exc_info`) to the logger.
+        """
+        try:
+            _LOGGER.debug("%s: " + msg, self.climate_entity, *args, **kwargs)
+        except Exception:
+            # Fall back to standard debug call if formatting fails
+            _LOGGER.debug(msg, *args, **kwargs)
+
     def _create_tracked_task(self, coro) -> None:
         """Add a coroutine to the task queue for efficient processing.
 
         Args:
             coro: A coroutine object to queue for background execution
         """
-        # Try to add to queue without blocking, drop if full to prevent memory issues
+        # Don't accept new tasks during shutdown
+        if getattr(self, "_shutting_down", False):
+            self._dropped_task_count += 1
+            self._debug("Controller shutting down; dropping new tracked task")
+            return
+
+        # Always wrap coroutine into a Task so shutdown can cancel/await consistently
         try:
-            self._task_queue.put_nowait(coro)
+            task = self.hass.loop.create_task(coro)
+            self._task_queue.put_nowait(task)
+            # Track peak queue size for observability
+            try:
+                qsize = self._task_queue.qsize()
+                if qsize > self._queue_peak:
+                    self._queue_peak = qsize
+            except Exception:
+                pass
         except asyncio.QueueFull:
-            _LOGGER.warning("Task queue full, dropping task to prevent memory leak")
+            self._dropped_task_count += 1
+            _LOGGER.warning(
+                "Task queue full; dropping tracked task to prevent memory growth"
+            )
+        except Exception as exc:
+            _LOGGER.exception("Failed to create/enqueue tracked task: %s", exc)
 
     async def _create_tracked_task_throttled(self, coro):
         """Create a tracked task with throttling to prevent resource exhaustion."""
@@ -248,13 +287,34 @@ class ClimateReactController:
 
     async def _process_task_queue(self) -> None:
         """Process tasks from the queue efficiently."""
+        # Loop until stop event is set and queue emptied. Use a short timeout on get
+        # so we can react to the stop event promptly.
         while True:
+            # Exit condition: stop requested and queue empty
+            if self._processor_stop_event.is_set() and self._task_queue.empty():
+                break
             try:
-                coro = await self._task_queue.get()
+                try:
+                    task: asyncio.Task = await asyncio.wait_for(
+                        self._task_queue.get(), timeout=1.0
+                    )
+                except asyncio.TimeoutError:
+                    continue
+
+                # Ensure we have a Task; if not, wrap defensively
+                if not isinstance(task, asyncio.Task):
+                    task = self.hass.loop.create_task(task)
+
                 async with self._task_semaphore:
-                    await coro
+                    try:
+                        await task
+                    except asyncio.CancelledError:
+                        # Task cancelled during shutdown or by caller
+                        self._debug("Background task was cancelled")
+                    except Exception as e:
+                        _LOGGER.exception("Task processing error: %s", e)
             except Exception as e:
-                _LOGGER.error("Task processing error: %s", e)
+                _LOGGER.exception("Unexpected error in task processor: %s", e)
 
     @property
     def _min_run_time_minutes(self) -> int:
@@ -281,7 +341,12 @@ class ClimateReactController:
 
     def _get_switch_entity_id(self) -> str:
         """Get the switch entity ID for logbook entries."""
-        return f"switch.climate_react_{self.entry.entry_id.replace('-', '_')}"
+        # Attach logbook entries to the control switch for the climate.
+        # Use the sanitized climate name so activity logs appear under
+        # `switch.climate_react_<climate>_control` (e.g. switch.climate_react_study_control).
+        climate_part = self.climate_entity.split(".")[-1].lower()
+        climate_safe = re.sub(r"[^a-z0-9]", "_", climate_part)
+        return f"switch.climate_react_{climate_safe}_control"
 
     @property
     def climate_entity(self) -> str:
@@ -357,6 +422,19 @@ class ClimateReactController:
         """Get the room name from the climate entity ID for use in entity IDs."""
         return self.climate_entity.split(".")[-1]
 
+    def _entity_suffix(self) -> str:
+        """Return a sanitized suffix for entity IDs: <climate_name>_<entry_id>.
+
+        Both parts are lowercased and non-alphanumeric chars replaced with
+        underscores to produce valid, unique identifiers.
+        """
+        climate_part = self.climate_entity.split(".")[-1].lower()
+        # Only use the sanitized climate name as the suffix. Omitting the
+        # config entry id keeps unique_ids stable to the climate name and
+        # avoids exposing UUID-like strings in IDs.
+        climate_safe = re.sub(r"[^a-z0-9]", "_", climate_part)
+        return climate_safe
+
     @property
     def timer_minutes(self) -> int:
         """Return remaining timer minutes calculated from expiry timestamp.
@@ -384,16 +462,30 @@ class ClimateReactController:
     def add_timer_listener(self, callback: Callable[[], None]) -> Callable[[], None]:
         """Register a callback to be notified on timer updates."""
         self._timer_listeners.append(callback)
+        self._debug(
+            "Added timer listener (total listeners: %d)", len(self._timer_listeners)
+        )
 
         def _remove() -> None:
             if callback in self._timer_listeners:
                 self._timer_listeners.remove(callback)
+                self._debug(
+                    "Removed timer listener (total listeners: %d)",
+                    len(self._timer_listeners),
+                )
 
         return _remove
 
     def _notify_timer_listeners(self) -> None:
         """Notify timer listeners of an update."""
         # Create a copy of the list to avoid issues if listeners modify the list
+        total = len(self._timer_listeners)
+        self._debug(
+            "Notifying %d timer listener(s) (timer minutes: %d)",
+            total,
+            self.timer_minutes,
+        )
+
         for listener in list(self._timer_listeners):
             try:
                 listener()
@@ -508,6 +600,9 @@ class ClimateReactController:
                 if time_since_failure > self._circuit_breaker_timeout:
                     self._service_call_failures[service_key] = 0
                     del self._service_call_last_failure[service_key]
+                    self._debug(
+                        "Circuit breaker reset for %s after timeout", service_key
+                    )
                     return False
 
             failure_count = self._service_call_failures.get(service_key, 0)
@@ -533,6 +628,10 @@ class ClimateReactController:
                     # Reset failure count on success
                     if service_key in self._service_call_failures:
                         del self._service_call_failures[service_key]
+                        self._debug(
+                            "Cleared failure count for %s due to successful call",
+                            service_key,
+                        )
                     if service_key in self._service_call_last_failure:
                         del self._service_call_last_failure[service_key]
                 else:
@@ -848,6 +947,7 @@ class ClimateReactController:
         )
 
         # Start the task processor for efficient background processing
+        self._debug("Starting task processor")
         self._task_processor_task = self.hass.loop.create_task(
             self._process_task_queue()
         )
@@ -895,20 +995,26 @@ class ClimateReactController:
                 self._timer_task = None
 
         # Cancel task processor
-        # Drain task queue to release coroutine references and avoid memory leaks
+        # Signal processor to stop accepting new work and exit when queue empty
+        self._shutting_down = True
+        self._processor_stop_event.set()
+
+        # Drain task queue to release Task references and cancel them
         try:
             while True:
-                coro = self._task_queue.get_nowait()
-                # If a Task was queued, cancel it explicitly
-                if isinstance(coro, asyncio.Task):
+                task = self._task_queue.get_nowait()
+                if isinstance(task, asyncio.Task):
                     try:
-                        coro.cancel()
+                        task.cancel()
                     except Exception:
-                        pass
-        except Exception:
-            # QueueEmpty or other errors — ignore and proceed with shutdown
+                        self._debug(
+                            "Failed to cancel queued task during shutdown",
+                            exc_info=True,
+                        )
+        except asyncio.QueueEmpty:
             pass
 
+        # Cancel and await the processor to ensure it exits cleanly
         if self._task_processor_task and not self._task_processor_task.done():
             self._task_processor_task.cancel()
             try:
@@ -1132,15 +1238,20 @@ class ClimateReactController:
     async def _debounce_temperature_threshold(self, temperature: float) -> None:
         """Debounce temperature threshold evaluation to prevent excessive processing."""
         self._pending_temperature = temperature
-
         # Cancel existing timer
         if self._debounce_temp_timer:
+            self._debug("Canceling existing temperature debounce timer")
             self._debounce_temp_timer.cancel()
 
         # Schedule new evaluation after debounce delay
+        delay = 1.0
+        self._debug(
+            "Scheduling temperature debounce (%.1fs) with pending temp %.2f",
+            delay,
+            temperature,
+        )
         self._debounce_temp_timer = self.hass.loop.call_later(
-            1.0,  # 1 second debounce
-            lambda: asyncio.create_task(self._process_pending_temperature()),
+            delay, lambda: asyncio.create_task(self._process_pending_temperature())
         )
 
     async def _process_pending_temperature(self) -> None:
@@ -1153,15 +1264,20 @@ class ClimateReactController:
     async def _debounce_humidity_threshold(self, humidity: float) -> None:
         """Debounce humidity threshold evaluation to prevent excessive processing."""
         self._pending_humidity = humidity
-
         # Cancel existing timer
         if self._debounce_humidity_timer:
+            self._debug("Canceling existing humidity debounce timer")
             self._debounce_humidity_timer.cancel()
 
         # Schedule new evaluation after debounce delay
+        delay = 1.0
+        self._debug(
+            "Scheduling humidity debounce (%.1fs) with pending humidity %.2f",
+            delay,
+            humidity,
+        )
         self._debounce_humidity_timer = self.hass.loop.call_later(
-            1.0,  # 1 second debounce
-            lambda: asyncio.create_task(self._process_pending_humidity()),
+            delay, lambda: asyncio.create_task(self._process_pending_humidity())
         )
 
     async def _process_pending_humidity(self) -> None:

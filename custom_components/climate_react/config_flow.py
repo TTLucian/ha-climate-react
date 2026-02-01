@@ -6,70 +6,69 @@ import logging
 from typing import Any
 
 import voluptuous as vol
-
 from homeassistant import config_entries
 from homeassistant.core import callback
 from homeassistant.helpers import selector
 
 from .const import (
+    CONF_AC_HUMIDITY_CONTROLS,
     CONF_CLIMATE_ENTITY,
+    CONF_DELAY_BETWEEN_COMMANDS,
+    CONF_ENABLE_LIGHT_CONTROL,
     CONF_ENABLED,
     CONF_FAN_HIGH_HUMIDITY,
     CONF_FAN_HIGH_TEMP,
     CONF_FAN_LOW_TEMP,
     CONF_HUMIDIFIER_ENTITY,
     CONF_HUMIDITY_SENSOR,
-    CONF_USE_EXTERNAL_HUMIDITY_SENSOR,
-    CONF_USE_EXTERNAL_TEMP_SENSOR,
-    CONF_USE_HUMIDITY,
-    CONF_AC_HUMIDITY_CONTROLS,
+    CONF_LIGHT_ENTITY,
+    CONF_LIGHT_SELECT_OFF_OPTION,
+    CONF_LIGHT_SELECT_ON_OPTION,
     CONF_MAX_HUMIDITY,
     CONF_MAX_TEMP,
     CONF_MIN_HUMIDITY,
+    CONF_MIN_RUN_TIME,
     CONF_MIN_TEMP,
     CONF_MODE_HIGH_HUMIDITY,
     CONF_MODE_HIGH_TEMP,
     CONF_MODE_LOW_TEMP,
-    CONF_MIN_RUN_TIME,
-    CONF_ENABLE_LIGHT_CONTROL,
-    CONF_LIGHT_ENTITY,
-    CONF_LIGHT_SELECT_ON_OPTION,
-    CONF_LIGHT_SELECT_OFF_OPTION,
     CONF_SWING_HIGH_HUMIDITY,
     CONF_SWING_HIGH_TEMP,
-    CONF_SWING_LOW_TEMP,
-    CONF_SWING_HORIZONTAL_LOW_TEMP,
-    CONF_SWING_HORIZONTAL_HIGH_TEMP,
     CONF_SWING_HORIZONTAL_HIGH_HUMIDITY,
-    CONF_TEMPERATURE_SENSOR,
-    CONF_TEMP_LOW_TEMP,
-    CONF_TEMP_HIGH_TEMP,
+    CONF_SWING_HORIZONTAL_HIGH_TEMP,
+    CONF_SWING_HORIZONTAL_LOW_TEMP,
+    CONF_SWING_LOW_TEMP,
     CONF_TEMP_HIGH_HUMIDITY,
-    CONF_DELAY_BETWEEN_COMMANDS,
+    CONF_TEMP_HIGH_TEMP,
+    CONF_TEMP_LOW_TEMP,
+    CONF_TEMPERATURE_SENSOR,
     CONF_TIMER_MINUTES,
+    CONF_USE_EXTERNAL_HUMIDITY_SENSOR,
+    CONF_USE_EXTERNAL_TEMP_SENSOR,
+    CONF_USE_HUMIDITY,
+    DEFAULT_AC_HUMIDITY_CONTROLS,
+    DEFAULT_DELAY_BETWEEN_COMMANDS,
+    DEFAULT_ENABLE_LIGHT_CONTROL,
     DEFAULT_ENABLED,
     DEFAULT_FAN_MODE,
+    DEFAULT_LIGHT_SELECT_OFF_OPTION,
+    DEFAULT_LIGHT_SELECT_ON_OPTION,
     DEFAULT_MAX_HUMIDITY,
     DEFAULT_MAX_TEMP,
     DEFAULT_MIN_HUMIDITY,
-    DEFAULT_MIN_TEMP,
     DEFAULT_MIN_RUN_TIME,
+    DEFAULT_MIN_TEMP,
     DEFAULT_MODE_HIGH_HUMIDITY,
     DEFAULT_MODE_HIGH_TEMP,
     DEFAULT_MODE_LOW_TEMP,
     DEFAULT_SWING_MODE,
-    DEFAULT_TEMP_LOW_TEMP,
-    DEFAULT_TEMP_HIGH_TEMP,
     DEFAULT_TEMP_HIGH_HUMIDITY,
-    DEFAULT_DELAY_BETWEEN_COMMANDS,
+    DEFAULT_TEMP_HIGH_TEMP,
+    DEFAULT_TEMP_LOW_TEMP,
     DEFAULT_TIMER_MINUTES,
-    DEFAULT_LIGHT_SELECT_ON_OPTION,
-    DEFAULT_LIGHT_SELECT_OFF_OPTION,
-    DEFAULT_ENABLE_LIGHT_CONTROL,
     DEFAULT_USE_EXTERNAL_HUMIDITY_SENSOR,
     DEFAULT_USE_EXTERNAL_TEMP_SENSOR,
     DEFAULT_USE_HUMIDITY,
-    DEFAULT_AC_HUMIDITY_CONTROLS,
     DOMAIN,
 )
 
@@ -678,37 +677,71 @@ class ClimateReactOptionsFlow(config_entries.OptionsFlow):
 
         if use_external_temp:
             current_temp = self.config_entry.data.get(CONF_TEMPERATURE_SENSOR)
-            schema_dict[vol.Required(CONF_TEMPERATURE_SENSOR, default=current_temp)] = (
-                selector.EntitySelector(
+            if current_temp:
+                schema_dict[
+                    vol.Required(CONF_TEMPERATURE_SENSOR, default=current_temp)
+                ] = selector.EntitySelector(
                     selector.EntitySelectorConfig(
                         domain="sensor", device_class="temperature"
                     )
                 )
-            )
+            else:
+                schema_dict[vol.Required(CONF_TEMPERATURE_SENSOR)] = (
+                    selector.EntitySelector(
+                        selector.EntitySelectorConfig(
+                            domain="sensor", device_class="temperature"
+                        )
+                    )
+                )
 
         if use_humidity and use_external_humidity:
             current_humidity = self.config_entry.data.get(CONF_HUMIDITY_SENSOR)
-            schema_dict[
-                vol.Required(CONF_HUMIDITY_SENSOR, default=current_humidity)
-            ] = selector.EntitySelector(
-                selector.EntitySelectorConfig(domain="sensor", device_class="humidity")
-            )
+            if current_humidity:
+                schema_dict[
+                    vol.Required(CONF_HUMIDITY_SENSOR, default=current_humidity)
+                ] = selector.EntitySelector(
+                    selector.EntitySelectorConfig(
+                        domain="sensor", device_class="humidity"
+                    )
+                )
+            else:
+                schema_dict[vol.Required(CONF_HUMIDITY_SENSOR)] = (
+                    selector.EntitySelector(
+                        selector.EntitySelectorConfig(
+                            domain="sensor", device_class="humidity"
+                        )
+                    )
+                )
 
         if use_humidity:
             current_humidifier = self.config_entry.data.get(CONF_HUMIDIFIER_ENTITY)
-            schema_dict[
-                vol.Optional(CONF_HUMIDIFIER_ENTITY, default=current_humidifier)
-            ] = selector.EntitySelector(
-                selector.EntitySelectorConfig(domain=["humidifier", "switch"])
-            )
+            if current_humidifier:
+                schema_dict[
+                    vol.Optional(CONF_HUMIDIFIER_ENTITY, default=current_humidifier)
+                ] = selector.EntitySelector(
+                    selector.EntitySelectorConfig(domain=["humidifier", "switch"])
+                )
+            else:
+                schema_dict[vol.Optional(CONF_HUMIDIFIER_ENTITY)] = (
+                    selector.EntitySelector(
+                        selector.EntitySelectorConfig(domain=["humidifier", "switch"])
+                    )
+                )
 
         if light_control:
             current_light = self.config_entry.data.get(CONF_LIGHT_ENTITY)
-            schema_dict[vol.Required(CONF_LIGHT_ENTITY, default=current_light)] = (
-                selector.EntitySelector(
+            if current_light:
+                schema_dict[vol.Required(CONF_LIGHT_ENTITY, default=current_light)] = (
+                    selector.EntitySelector(
+                        selector.EntitySelectorConfig(
+                            domain=["light", "switch", "select"]
+                        )
+                    )
+                )
+            else:
+                schema_dict[vol.Required(CONF_LIGHT_ENTITY)] = selector.EntitySelector(
                     selector.EntitySelectorConfig(domain=["light", "switch", "select"])
                 )
-            )
             # Add select option fields with current values or defaults
             current_on = self.config_entry.data.get(
                 CONF_LIGHT_SELECT_ON_OPTION, DEFAULT_LIGHT_SELECT_ON_OPTION

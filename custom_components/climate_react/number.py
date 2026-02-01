@@ -111,8 +111,8 @@ class ClimateReactMinTempNumber(ClimateReactBaseNumber):
     def __init__(self, controller: ClimateReactController, entry: ConfigEntry) -> None:
         """Initialize the min temp number."""
         super().__init__(controller, entry)
-        room_name = controller.get_room_name()
-        self._attr_unique_id = f"climate_react_{room_name}_min_temp"
+        suffix = controller._entity_suffix()
+        self._attr_unique_id = f"climate_react_{suffix}_min_temp"
         config = {**entry.data, **entry.options}
         self._attr_native_value = config.get(CONF_MIN_TEMP, 18.0)
 
@@ -132,8 +132,8 @@ class ClimateReactMaxTempNumber(ClimateReactBaseNumber):
     def __init__(self, controller: ClimateReactController, entry: ConfigEntry) -> None:
         """Initialize the max temp number."""
         super().__init__(controller, entry)
-        room_name = controller.get_room_name()
-        self._attr_unique_id = f"climate_react_{room_name}_max_temp"
+        suffix = controller._entity_suffix()
+        self._attr_unique_id = f"climate_react_{suffix}_max_temp"
         config = {**entry.data, **entry.options}
         self._attr_native_value = config.get(CONF_MAX_TEMP, 26.0)
 
@@ -153,8 +153,8 @@ class ClimateReactMinHumidityNumber(ClimateReactBaseNumber):
     def __init__(self, controller: ClimateReactController, entry: ConfigEntry) -> None:
         """Initialize the min humidity number."""
         super().__init__(controller, entry)
-        room_name = controller.get_room_name()
-        self._attr_unique_id = f"climate_react_{room_name}_min_humidity"
+        suffix = controller._entity_suffix()
+        self._attr_unique_id = f"climate_react_{suffix}_min_humidity"
         config = {**entry.data, **entry.options}
         self._attr_native_value = config.get(CONF_MIN_HUMIDITY, 30.0)
 
@@ -174,8 +174,8 @@ class ClimateReactMaxHumidityNumber(ClimateReactBaseNumber):
     def __init__(self, controller: ClimateReactController, entry: ConfigEntry) -> None:
         """Initialize the max humidity number."""
         super().__init__(controller, entry)
-        room_name = controller.get_room_name()
-        self._attr_unique_id = f"climate_react_{room_name}_max_humidity"
+        suffix = controller._entity_suffix()
+        self._attr_unique_id = f"climate_react_{suffix}_max_humidity"
         config = {**entry.data, **entry.options}
         self._attr_native_value = config.get(CONF_MAX_HUMIDITY, 60.0)
 
@@ -195,8 +195,8 @@ class ClimateReactTempLowTempNumber(ClimateReactBaseNumber):
     def __init__(self, controller: ClimateReactController, entry: ConfigEntry) -> None:
         """Initialize the target temp low number."""
         super().__init__(controller, entry)
-        room_name = controller.get_room_name()
-        self._attr_unique_id = f"climate_react_{room_name}_temp_low_temp"
+        suffix = controller._entity_suffix()
+        self._attr_unique_id = f"climate_react_{suffix}_temp_low_temp"
         config = {**entry.data, **entry.options}
         self._attr_native_value = config.get(CONF_TEMP_LOW_TEMP, 16.0)
 
@@ -216,8 +216,8 @@ class ClimateReactTempHighTempNumber(ClimateReactBaseNumber):
     def __init__(self, controller: ClimateReactController, entry: ConfigEntry) -> None:
         """Initialize the target temp high number."""
         super().__init__(controller, entry)
-        room_name = controller.get_room_name()
-        self._attr_unique_id = f"climate_react_{room_name}_temp_high_temp"
+        suffix = controller._entity_suffix()
+        self._attr_unique_id = f"climate_react_{suffix}_temp_high_temp"
         config = {**entry.data, **entry.options}
         self._attr_native_value = config.get(CONF_TEMP_HIGH_TEMP, 30.0)
 
@@ -237,8 +237,8 @@ class ClimateReactTempHighHumidityNumber(ClimateReactBaseNumber):
     def __init__(self, controller: ClimateReactController, entry: ConfigEntry) -> None:
         """Initialize the target temp humidity number."""
         super().__init__(controller, entry)
-        room_name = controller.get_room_name()
-        self._attr_unique_id = f"climate_react_{room_name}_temp_high_humidity"
+        suffix = controller._entity_suffix()
+        self._attr_unique_id = f"climate_react_{suffix}_temp_high_humidity"
         config = {**entry.data, **entry.options}
         self._attr_native_value = config.get(CONF_TEMP_HIGH_HUMIDITY, 24.0)
 
@@ -258,8 +258,8 @@ class ClimateReactDelayBetweenCommandsNumber(ClimateReactBaseNumber):
     def __init__(self, controller: ClimateReactController, entry: ConfigEntry) -> None:
         """Initialize the delay between commands number."""
         super().__init__(controller, entry)
-        room_name = controller.get_room_name()
-        self._attr_unique_id = f"climate_react_{room_name}_delay_between_commands"
+        suffix = controller._entity_suffix()
+        self._attr_unique_id = f"climate_react_{suffix}_delay_between_commands"
         config = {**entry.data, **entry.options}
         self._attr_native_value = config.get(
             CONF_DELAY_BETWEEN_COMMANDS, DEFAULT_DELAY_BETWEEN_COMMANDS
@@ -281,8 +281,8 @@ class ClimateReactMinRunTimeNumber(ClimateReactBaseNumber):
     def __init__(self, controller: ClimateReactController, entry: ConfigEntry) -> None:
         """Initialize the min run time number."""
         super().__init__(controller, entry)
-        room_name = controller.get_room_name()
-        self._attr_unique_id = f"climate_react_{room_name}_min_run_time"
+        suffix = controller._entity_suffix()
+        self._attr_unique_id = f"climate_react_{suffix}_min_run_time"
         config = {**entry.data, **entry.options}
         self._attr_native_value = config.get(CONF_MIN_RUN_TIME, DEFAULT_MIN_RUN_TIME)
 
@@ -302,8 +302,8 @@ class ClimateReactTimerNumber(ClimateReactBaseNumber):
     def __init__(self, controller: ClimateReactController, entry: ConfigEntry) -> None:
         """Initialize the timer number."""
         super().__init__(controller, entry)
-        room_name = controller.get_room_name()
-        self._attr_unique_id = f"climate_react_{room_name}_timer"
+        suffix = controller._entity_suffix()
+        self._attr_unique_id = f"climate_react_{suffix}_timer"
         self._attr_native_value = controller.timer_minutes
         self._remove_listener = None
 
