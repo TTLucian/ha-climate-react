@@ -218,9 +218,6 @@ class ClimateReactController:
 
         self._timer_task: asyncio.Task | None = None
         self._timer_listeners: list[Callable[[], None]] = []
-        self._light_control_enabled: bool = config_data.get(
-            CONF_ENABLE_LIGHT_CONTROL, DEFAULT_ENABLE_LIGHT_CONTROL
-        )
 
     def _debug(self, msg: str, *args: Any, **kwargs: Any) -> None:
         """Centralized debug logging helper for controller messages.
@@ -388,13 +385,14 @@ class ClimateReactController:
         return self._enabled
 
     @property
-    def light_control_enabled(self) -> bool:
-        """Check if light control is enabled."""
-        return self._light_control_enabled
-
-    @property
     def light_entity(self) -> str | None:
         """Light/select entity used for light control."""
+        enabled = self.config.get(
+            CONF_ENABLE_LIGHT_CONTROL, DEFAULT_ENABLE_LIGHT_CONTROL
+        )
+        if not enabled:
+            # Light control explicitly disabled in config; treat as if no light configured
+            return None
         return self.config.get(CONF_LIGHT_ENTITY)
 
     @property
@@ -1065,24 +1063,7 @@ class ClimateReactController:
             domain=DOMAIN,
         )
 
-    async def async_set_light_control_enabled(self, enabled: bool) -> None:
-        """Enable or disable light control and persist the choice."""
-        # Lock protects config updates to ensure atomic operations and prevent
-        # race conditions when multiple config changes happen simultaneously
-        async with self._config_lock:
-            self._light_control_enabled = enabled
-            new_options = {**self.entry.options}
-            new_options[CONF_ENABLE_LIGHT_CONTROL] = enabled
-            self.hass.config_entries.async_update_entry(self.entry, options=new_options)
-            self._invalidate_config_cache()
-        _LOGGER.info(
-            "Light control %s for %s",
-            "enabled" if enabled else "disabled",
-            self.climate_entity,
-        )
-
-        # Re-apply behavior to enforce desired light state immediately
-        await self._async_apply_light_behavior(enabled=self._enabled)
+    # Light control is now driven solely by the `light_behavior` select.
 
     async def async_update_thresholds(self, data: dict[str, Any]) -> None:
         """Update thresholds dynamically."""
@@ -1831,7 +1812,9 @@ class ClimateReactController:
 
     async def _handle_light_control(self, turn_off: bool, delay_seconds: float) -> None:
         """Handle light control toggling for climate commands."""
-        light_entity = self.light_entity if self._light_control_enabled else None
+        # Light control is active when a light entity is configured and the
+        # configured light behavior is not `unchanged`.
+        light_entity = self.light_entity
         light_behavior = self.light_behavior
         toggle_light = light_entity and light_behavior != LIGHT_BEHAVIOR_UNCHANGED
 
@@ -2308,8 +2291,6 @@ class ClimateReactController:
 
     async def _async_apply_light_behavior(self, enabled: bool) -> None:
         """Apply configured light behavior when automation toggles."""
-        if not self._light_control_enabled:
-            return
         light_entity = self.light_entity
         if not light_entity:
             return

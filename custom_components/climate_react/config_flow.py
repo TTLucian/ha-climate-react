@@ -107,9 +107,6 @@ class ClimateReactConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 ac_humidity_controls = user_input.get(
                     CONF_AC_HUMIDITY_CONTROLS, DEFAULT_AC_HUMIDITY_CONTROLS
                 )
-                use_light_control = user_input.get(
-                    CONF_ENABLE_LIGHT_CONTROL, DEFAULT_ENABLE_LIGHT_CONTROL
-                )
 
                 # If no optional features enabled, skip sensors step and create entry directly
                 if not (
@@ -117,7 +114,6 @@ class ClimateReactConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     or use_humidity
                     or use_external_humidity
                     or ac_humidity_controls
-                    or use_light_control
                 ):
                     return await self._async_create_entry_with_defaults(user_input)
 
@@ -128,6 +124,11 @@ class ClimateReactConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             vol.Required(CONF_CLIMATE_ENTITY): selector.EntitySelector(
                 selector.EntitySelectorConfig(domain="climate")
             ),
+            vol.Optional(
+                CONF_ENABLE_LIGHT_CONTROL,
+                default=DEFAULT_ENABLE_LIGHT_CONTROL,
+                description={"suggested_value": DEFAULT_ENABLE_LIGHT_CONTROL},
+            ): selector.BooleanSelector(),
             vol.Optional(
                 CONF_USE_EXTERNAL_TEMP_SENSOR,
                 default=DEFAULT_USE_EXTERNAL_TEMP_SENSOR,
@@ -147,11 +148,6 @@ class ClimateReactConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 CONF_AC_HUMIDITY_CONTROLS,
                 default=DEFAULT_AC_HUMIDITY_CONTROLS,
                 description={"suggested_value": DEFAULT_AC_HUMIDITY_CONTROLS},
-            ): selector.BooleanSelector(),
-            vol.Optional(
-                CONF_ENABLE_LIGHT_CONTROL,
-                default=DEFAULT_ENABLE_LIGHT_CONTROL,
-                description={"suggested_value": DEFAULT_ENABLE_LIGHT_CONTROL},
             ): selector.BooleanSelector(),
         }
 
@@ -174,6 +170,9 @@ class ClimateReactConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         use_external_humidity = self._step1_data.get(
             CONF_USE_EXTERNAL_HUMIDITY_SENSOR, DEFAULT_USE_EXTERNAL_HUMIDITY_SENSOR
         )
+        light_control = self._step1_data.get(
+            CONF_ENABLE_LIGHT_CONTROL, DEFAULT_ENABLE_LIGHT_CONTROL
+        )
 
         if user_input is not None:
             if use_external_temp:
@@ -195,10 +194,10 @@ class ClimateReactConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 if humidifier and not self.hass.states.get(humidifier):
                     errors[CONF_HUMIDIFIER_ENTITY] = "entity_not_found"
 
-            if self._step1_data.get(
-                CONF_ENABLE_LIGHT_CONTROL, DEFAULT_ENABLE_LIGHT_CONTROL
-            ):
-                light_entity = user_input.get(CONF_LIGHT_ENTITY)
+            # Validate light entity depending on whether light control was enabled
+            light_entity = user_input.get(CONF_LIGHT_ENTITY)
+            if light_control:
+                # If user chose to enable light control, a light entity is required
                 if not light_entity:
                     errors[CONF_LIGHT_ENTITY] = "entity_required"
                 elif not self.hass.states.get(light_entity):
@@ -208,6 +207,16 @@ class ClimateReactConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     for domain in ["light", "switch", "select"]
                 ):
                     errors[CONF_LIGHT_ENTITY] = "invalid_domain"
+            else:
+                # Light control disabled: if user provided an entity, validate its domain/existence
+                if light_entity:
+                    if not self.hass.states.get(light_entity):
+                        errors[CONF_LIGHT_ENTITY] = "entity_not_found"
+                    elif not any(
+                        light_entity.startswith(domain + ".")
+                        for domain in ["light", "switch", "select"]
+                    ):
+                        errors[CONF_LIGHT_ENTITY] = "invalid_domain"
 
             if not errors:
                 # Check if light entity is a select type - if so, route to light_options step
@@ -257,9 +266,6 @@ class ClimateReactConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 data[CONF_DELAY_BETWEEN_COMMANDS] = DEFAULT_DELAY_BETWEEN_COMMANDS
                 data[CONF_TIMER_MINUTES] = DEFAULT_TIMER_MINUTES
                 data[CONF_ENABLED] = DEFAULT_ENABLED
-                data[CONF_ENABLE_LIGHT_CONTROL] = data.get(
-                    CONF_ENABLE_LIGHT_CONTROL, DEFAULT_ENABLE_LIGHT_CONTROL
-                )
                 data[CONF_LIGHT_ENTITY] = user_input.get(CONF_LIGHT_ENTITY)
                 data[CONF_LIGHT_SELECT_ON_OPTION] = DEFAULT_LIGHT_SELECT_ON_OPTION
                 data[CONF_LIGHT_SELECT_OFF_OPTION] = DEFAULT_LIGHT_SELECT_OFF_OPTION
@@ -314,12 +320,10 @@ class ClimateReactConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 selector.EntitySelectorConfig(domain=["humidifier", "switch"])
             )
 
-        if self._step1_data.get(
-            CONF_ENABLE_LIGHT_CONTROL, DEFAULT_ENABLE_LIGHT_CONTROL
-        ):
-            schema_dict[vol.Required(CONF_LIGHT_ENTITY)] = selector.EntitySelector(
-                selector.EntitySelectorConfig(domain=["light", "switch", "select"])
-            )
+        # Light entity is optional; validate when provided.
+        schema_dict[vol.Optional(CONF_LIGHT_ENTITY)] = selector.EntitySelector(
+            selector.EntitySelectorConfig(domain=["light", "switch", "select"])
+        )
 
         return self.async_show_form(
             step_id="sensors", data_schema=vol.Schema(schema_dict), errors=errors
@@ -376,9 +380,6 @@ class ClimateReactConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 data[CONF_DELAY_BETWEEN_COMMANDS] = DEFAULT_DELAY_BETWEEN_COMMANDS
                 data[CONF_TIMER_MINUTES] = DEFAULT_TIMER_MINUTES
                 data[CONF_ENABLED] = DEFAULT_ENABLED
-                data[CONF_ENABLE_LIGHT_CONTROL] = data.get(
-                    CONF_ENABLE_LIGHT_CONTROL, DEFAULT_ENABLE_LIGHT_CONTROL
-                )
                 data[CONF_LIGHT_ENTITY] = self._step2_data.get(CONF_LIGHT_ENTITY)
                 data[CONF_LIGHT_SELECT_ON_OPTION] = user_input.get(
                     CONF_LIGHT_SELECT_ON_OPTION, DEFAULT_LIGHT_SELECT_ON_OPTION
@@ -466,6 +467,7 @@ class ClimateReactConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         data[CONF_DELAY_BETWEEN_COMMANDS] = DEFAULT_DELAY_BETWEEN_COMMANDS
         data[CONF_TIMER_MINUTES] = DEFAULT_TIMER_MINUTES
         data[CONF_ENABLED] = DEFAULT_ENABLED
+        data[CONF_ENABLE_LIGHT_CONTROL] = DEFAULT_ENABLE_LIGHT_CONTROL
         data[CONF_LIGHT_ENTITY] = None
         data[CONF_LIGHT_SELECT_ON_OPTION] = DEFAULT_LIGHT_SELECT_ON_OPTION
         data[CONF_LIGHT_SELECT_OFF_OPTION] = DEFAULT_LIGHT_SELECT_OFF_OPTION
