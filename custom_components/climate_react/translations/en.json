@@ -22,9 +22,13 @@
         "description": "Select external sensors and optional devices.",
         "data": {
           "temperature_sensor": "Temperature Sensor",
+          "temperature_sensor_description": "Optional: select an external temperature sensor to use instead of the climate entity's built-in temperature.",
           "humidity_sensor": "Humidity Sensor",
+          "humidity_sensor_description": "Optional: select an external humidity sensor to use instead of the climate entity's built-in humidity.",
           "humidifier_entity": "Humidifier Entity (Optional)",
-          "light_entity": "Light Entity (Required when light control is enabled)"
+          "humidifier_entity_description": "Optional: device that will be turned on to increase humidity (humidifier or switch). Leave blank if none.",
+          "light_entity": "Light Entity (Required when light control is enabled)",
+          "light_entity_description": "The entity that controls the display light or mode on your AC. Can be a light, switch, or select entity."
         }
       },
       "light_options": {
@@ -68,9 +72,13 @@
         "description": "Select external sensors and optional devices.",
         "data": {
           "temperature_sensor": "Temperature Sensor",
+          "temperature_sensor_description": "Optional: select an external temperature sensor to use instead of the climate entity's built-in temperature.",
           "humidity_sensor": "Humidity Sensor",
+          "humidity_sensor_description": "Optional: select an external humidity sensor to use instead of the climate entity's built-in humidity.",
           "humidifier_entity": "Humidifier Entity (Optional)",
-          "light_entity": "Light Entity (Required when light control is enabled)"
+          "humidifier_entity_description": "Optional: device that will be turned on to increase humidity (humidifier or switch). Leave blank if none.",
+          "light_entity": "Light Entity (Required when light control is enabled)",
+          "light_entity_description": "The entity that controls the display light or mode on your AC. Can be a light, switch, or select entity."
         }
       }
     },
