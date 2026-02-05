@@ -34,6 +34,7 @@ A Home Assistant custom integration that automatically controls your HVAC system
 
 ---
  [!["Buy Me A Coffee"](https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png)](https://www.buymeacoffee.com/TTLucian)
+ 
 ---
 
 ## 📦 Installation
