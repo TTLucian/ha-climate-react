@@ -7,6 +7,12 @@
   <img src="https://img.shields.io/github/actions/workflow/status/TTLucian/ha-climate-react/ci.yml?style=for-the-badge" />
 </p>
 
+<p align="center">
+  <a href="https://buymeacoffee.com/ttlucian" rel="noopener" target="_blank">
+    <img src="https://img.shields.io/badge/Buy%20Me%20a%20Coffee-Donate-yellow?style=for-the-badge" alt="Buy Me a Coffee" />
+  </a>
+</p>
+
 A Home Assistant custom integration that automatically controls your HVAC system based on temperature and humidity thresholds. Inspired by Sensibo's Climate React feature.
 
 ## 🌟 Features
@@ -25,6 +31,10 @@ A Home Assistant custom integration that automatically controls your HVAC system
 - **Dynamic Adjustments**: Update thresholds on-the-fly
 - **Enable/Disable Control**: Simple switch to turn automation on/off
 - **Multi-AC Support**: Run independent instances for multiple climate entities
+
+---
+ [!["Buy Me A Coffee"](https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png)](https://www.buymeacoffee.com/TTLucian)
+---
 
 ## 📦 Installation
 
