@@ -329,4 +329,4 @@ class ClimateReactTimerNumber(ClimateReactBaseNumber):
 
     async def async_set_native_value(self, value: float) -> None:
         """Set timer minutes and propagate to controller."""
-        await self._controller.async_set_timer(value)
+        await self._controller.async_set_timer(int(round(value)))
