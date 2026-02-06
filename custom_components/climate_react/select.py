@@ -134,17 +134,13 @@ async def async_setup_entry(
     climate_state = hass.states.get(controller.climate_entity)
 
     # Build candidates - if climate unavailable, we'll still add entities and they'll get enabled when climate becomes available
+    entities: list[SelectEntity]
     if climate_state and climate_state.state not in (STATE_UNAVAILABLE, STATE_UNKNOWN):
         entities = _build_candidates(climate_state)
     else:
         # Climate not available yet - create entities with fallback to detect all capabilities once available
         # This ensures entities are registered even if climate entity is still loading
         entities = [
-            (
-                ClimateReactLightBehaviorSelect(controller, entry)
-                if controller.light_entity
-                else None
-            ),
             ClimateReactModeLowTempSelect(controller, entry),
             ClimateReactModeHighTempSelect(controller, entry),
             ClimateReactFanLowTempSelect(controller, entry),
@@ -154,6 +150,9 @@ async def async_setup_entry(
             ClimateReactSwingHorizontalLowTempSelect(controller, entry),
             ClimateReactSwingHorizontalHighTempSelect(controller, entry),
         ]
+        # Add light entity if available
+        if controller.light_entity:
+            entities.append(ClimateReactLightBehaviorSelect(controller, entry))
         # Add humidity entities if enabled
         if entry.data.get(CONF_USE_HUMIDITY, False):
             entities.extend(
@@ -164,8 +163,6 @@ async def async_setup_entry(
                     ClimateReactSwingHorizontalHighHumiditySelect(controller, entry),
                 ]
             )
-        # Filter out None values
-        entities = [e for e in entities if e is not None]
         _LOGGER.info(
             "Climate entity %s unavailable at setup, created %d select entities (will become available when climate loads)",
             controller.climate_entity,
@@ -211,7 +208,7 @@ async def async_setup_entry(
     _state["unsub_climate"] = controller.register_state_listener(
         [controller.climate_entity], _on_climate_change
     )
-    entry.async_on_unload(_state["unsub_climate"])
+    entry.async_on_unload(_state["unsub_climate"])  # type: ignore[arg-type]
 
 
 class ClimateReactBaseSelect(SelectEntity):

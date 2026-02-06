@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from typing import Callable
 
 from homeassistant.components.number import NumberEntity, NumberMode
 from homeassistant.config_entries import ConfigEntry
@@ -296,7 +297,7 @@ class ClimateReactTimerNumber(ClimateReactBaseNumber):
     _attr_native_min_value = 0
     _attr_native_max_value = 240
     _attr_native_step = 10
-    _attr_mode = "slider"
+    _attr_mode = NumberMode.SLIDER
     _config_key = CONF_TIMER_MINUTES
 
     def __init__(self, controller: ClimateReactController, entry: ConfigEntry) -> None:
@@ -305,7 +306,7 @@ class ClimateReactTimerNumber(ClimateReactBaseNumber):
         suffix = controller._entity_suffix()
         self._attr_unique_id = f"climate_react_{suffix}_timer"
         self._attr_native_value = controller.timer_minutes
-        self._remove_listener = None
+        self._remove_listener: Callable[[], None] | None = None
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()

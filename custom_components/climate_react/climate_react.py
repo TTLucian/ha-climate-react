@@ -130,13 +130,13 @@ class ClimateReactController:
         """Initialize the controller."""
         self.hass = hass
         self.entry = entry
-        self._unsub_temp = None
-        self._unsub_humidity = None
-        self._unsub_climate = None
-        self._unsub_climate_availability = None
+        self._unsub_temp: Callable[[], None] | None = None
+        self._unsub_humidity: Callable[[], None] | None = None
+        self._unsub_climate: Callable[[], None] | None = None
+        self._unsub_climate_availability: Callable[[], None] | None = None
         self._enabled = entry.data.get(CONF_ENABLED, DEFAULT_ENABLED)
-        self._last_temp = None
-        self._last_humidity = None
+        self._last_temp: float | None = None
+        self._last_humidity: float | None = None
         self._warned_horizontal_service_missing = False
         self._climate_min_temp: float | None = None
         self._climate_max_temp: float | None = None
@@ -167,7 +167,9 @@ class ClimateReactController:
         self._capability_validation_time: dict[str, float] = {}
 
         # Enhanced state change tracking for debugging
-        self._state_change_log = deque(maxlen=MAX_STATE_LOG_ENTRIES)
+        self._state_change_log: deque[dict[str, Any]] = deque(
+            maxlen=MAX_STATE_LOG_ENTRIES
+        )
 
         # Sensor change debouncing to prevent excessive evaluations
         self._debounce_temp_timer: asyncio.TimerHandle | None = None
@@ -193,7 +195,7 @@ class ClimateReactController:
         self._task_processor_task: asyncio.Task | None = None
 
         # Pre-allocated common objects for performance
-        self._empty_details = {}
+        self._empty_details: dict[str, Any] = {}
 
         # Check for new expiry format first
         expiry_value = config_data.get(CONF_TIMER_EXPIRY)

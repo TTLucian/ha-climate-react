@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, TypedDict
 
 import voluptuous as vol
 from homeassistant import config_entries
@@ -75,47 +75,208 @@ from .const import (
 _LOGGER = logging.getLogger(__name__)
 
 
+class UserStepData(TypedDict, total=False):
+    """Type-safe data structure for user step configuration."""
+
+    climate_entity: str
+    enable_light_control: bool
+    use_external_temp_sensor: bool
+    use_humidity: bool
+    use_external_humidity_sensor: bool
+    ac_humidity_controls: bool
+
+
+class SensorStepData(TypedDict, total=False):
+    """Type-safe data structure for sensor step configuration."""
+
+    temperature_sensor: str | None
+    humidity_sensor: str | None
+    humidifier_entity: str | None
+    light_entity: str | None
+
+
+class LightOptionsData(TypedDict, total=False):
+    """Type-safe data structure for light options step configuration."""
+
+    light_select_on_option: str
+    light_select_off_option: str
+
+
 class ClimateReactConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Climate React."""
 
     VERSION = 1
-    _step1_data: dict[str, Any] | None = None
-    _step2_data: dict[str, Any] | None = None
+    _step1_data: UserStepData | None = None
+    _step2_data: SensorStepData | None = None
+
+    def _validate_entity_exists(
+        self, entity_id: str | None, field_name: str, errors: dict[str, str]
+    ) -> bool:
+        """Validate that an entity exists in Home Assistant.
+
+        Args:
+            entity_id: The entity ID to validate
+            field_name: The field name for error reporting
+            errors: Dictionary to store validation errors
+
+        Returns:
+            True if entity exists or entity_id is None, False otherwise
+        """
+        if not entity_id:
+            errors[field_name] = "entity_required"
+            return False
+        if not self.hass.states.get(entity_id):
+            errors[field_name] = "entity_not_found"
+            return False
+        return True
+
+    def _validate_entity_domain(
+        self,
+        entity_id: str,
+        allowed_domains: list[str],
+        field_name: str,
+        errors: dict[str, str],
+    ) -> bool:
+        """Validate that an entity belongs to allowed domains.
+
+        Args:
+            entity_id: The entity ID to validate
+            allowed_domains: List of allowed domain prefixes
+            field_name: The field name for error reporting
+            errors: Dictionary to store validation errors
+
+        Returns:
+            True if entity domain is allowed, False otherwise
+        """
+        if not any(entity_id.startswith(domain + ".") for domain in allowed_domains):
+            errors[field_name] = "invalid_domain"
+            return False
+        return True
+
+    def _extract_optional_entity(
+        self, user_input: dict[str, Any] | None, field_name: str
+    ) -> str | None:
+        """Type-safely extract an optional entity ID from user input.
+
+        Args:
+            user_input: The user input dictionary
+            field_name: The field name to extract
+
+        Returns:
+            The entity ID if present and valid, None otherwise
+        """
+        if not user_input:
+            return None
+        value = user_input.get(field_name)
+        return str(value) if value else None
+
+    def _create_default_config_data(self, base_data: UserStepData) -> dict[str, Any]:
+        """Create complete configuration data with all default values.
+
+        Args:
+            base_data: The base configuration data from user input
+
+        Returns:
+            Complete configuration dictionary with defaults
+        """
+        from .const import (
+            DEFAULT_DELAY_BETWEEN_COMMANDS,
+            DEFAULT_ENABLED,
+            DEFAULT_FAN_MODE,
+            DEFAULT_LIGHT_SELECT_OFF_OPTION,
+            DEFAULT_LIGHT_SELECT_ON_OPTION,
+            DEFAULT_MAX_HUMIDITY,
+            DEFAULT_MAX_TEMP,
+            DEFAULT_MIN_HUMIDITY,
+            DEFAULT_MIN_RUN_TIME,
+            DEFAULT_MIN_TEMP,
+            DEFAULT_MODE_HIGH_HUMIDITY,
+            DEFAULT_MODE_HIGH_TEMP,
+            DEFAULT_MODE_LOW_TEMP,
+            DEFAULT_SWING_MODE,
+            DEFAULT_TEMP_HIGH_HUMIDITY,
+            DEFAULT_TEMP_HIGH_TEMP,
+            DEFAULT_TEMP_LOW_TEMP,
+            DEFAULT_TIMER_MINUTES,
+        )
+
+        return {
+            **base_data,
+            CONF_MIN_TEMP: DEFAULT_MIN_TEMP,
+            CONF_MAX_TEMP: DEFAULT_MAX_TEMP,
+            CONF_MIN_HUMIDITY: DEFAULT_MIN_HUMIDITY,
+            CONF_MAX_HUMIDITY: DEFAULT_MAX_HUMIDITY,
+            CONF_MIN_RUN_TIME: DEFAULT_MIN_RUN_TIME,
+            CONF_MODE_LOW_TEMP: DEFAULT_MODE_LOW_TEMP,
+            CONF_MODE_HIGH_TEMP: DEFAULT_MODE_HIGH_TEMP,
+            CONF_MODE_HIGH_HUMIDITY: DEFAULT_MODE_HIGH_HUMIDITY,
+            CONF_FAN_LOW_TEMP: DEFAULT_FAN_MODE,
+            CONF_FAN_HIGH_TEMP: DEFAULT_FAN_MODE,
+            CONF_FAN_HIGH_HUMIDITY: DEFAULT_FAN_MODE,
+            CONF_SWING_LOW_TEMP: DEFAULT_SWING_MODE,
+            CONF_SWING_HIGH_TEMP: DEFAULT_SWING_MODE,
+            CONF_SWING_HIGH_HUMIDITY: DEFAULT_SWING_MODE,
+            CONF_SWING_HORIZONTAL_LOW_TEMP: DEFAULT_SWING_MODE,
+            CONF_SWING_HORIZONTAL_HIGH_TEMP: DEFAULT_SWING_MODE,
+            CONF_SWING_HORIZONTAL_HIGH_HUMIDITY: DEFAULT_SWING_MODE,
+            CONF_TEMP_LOW_TEMP: DEFAULT_TEMP_LOW_TEMP,
+            CONF_TEMP_HIGH_TEMP: DEFAULT_TEMP_HIGH_TEMP,
+            CONF_TEMP_HIGH_HUMIDITY: DEFAULT_TEMP_HIGH_HUMIDITY,
+            CONF_DELAY_BETWEEN_COMMANDS: DEFAULT_DELAY_BETWEEN_COMMANDS,
+            CONF_TIMER_MINUTES: DEFAULT_TIMER_MINUTES,
+            CONF_ENABLED: DEFAULT_ENABLED,
+            CONF_LIGHT_SELECT_ON_OPTION: DEFAULT_LIGHT_SELECT_ON_OPTION,
+            CONF_LIGHT_SELECT_OFF_OPTION: DEFAULT_LIGHT_SELECT_OFF_OPTION,
+        }
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> Any:
         """Handle the initial step - core settings and navigation to sensors step."""
         errors: dict[str, str] = {}
 
         if user_input is not None:
-            # Validate climate entity exists
-            climate_entity = user_input.get(CONF_CLIMATE_ENTITY)
-            if not climate_entity:
-                errors[CONF_CLIMATE_ENTITY] = "entity_required"
-            elif not self.hass.states.get(climate_entity):
-                errors[CONF_CLIMATE_ENTITY] = "entity_not_found"
+            # Type-safe validation of climate entity
+            climate_entity = self._extract_optional_entity(
+                user_input, CONF_CLIMATE_ENTITY
+            )
+            if not self._validate_entity_exists(
+                climate_entity, CONF_CLIMATE_ENTITY, errors
+            ):
+                pass  # Error already added by validation method
+
             if not errors:
-                self._step1_data = dict(user_input)
-                # Check if any optional features are enabled
-                use_external_temp = user_input.get(
-                    CONF_USE_EXTERNAL_TEMP_SENSOR, DEFAULT_USE_EXTERNAL_TEMP_SENSOR
-                )
-                use_humidity = user_input.get(CONF_USE_HUMIDITY, DEFAULT_USE_HUMIDITY)
-                use_external_humidity = user_input.get(
-                    CONF_USE_EXTERNAL_HUMIDITY_SENSOR,
-                    DEFAULT_USE_EXTERNAL_HUMIDITY_SENSOR,
-                )
-                ac_humidity_controls = user_input.get(
-                    CONF_AC_HUMIDITY_CONTROLS, DEFAULT_AC_HUMIDITY_CONTROLS
+                # Create type-safe step data
+                assert climate_entity is not None  # Validated above
+                self._step1_data = UserStepData(
+                    climate_entity=climate_entity,
+                    enable_light_control=user_input.get(
+                        CONF_ENABLE_LIGHT_CONTROL, DEFAULT_ENABLE_LIGHT_CONTROL
+                    ),
+                    use_external_temp_sensor=user_input.get(
+                        CONF_USE_EXTERNAL_TEMP_SENSOR, DEFAULT_USE_EXTERNAL_TEMP_SENSOR
+                    ),
+                    use_humidity=user_input.get(
+                        CONF_USE_HUMIDITY, DEFAULT_USE_HUMIDITY
+                    ),
+                    use_external_humidity_sensor=user_input.get(
+                        CONF_USE_EXTERNAL_HUMIDITY_SENSOR,
+                        DEFAULT_USE_EXTERNAL_HUMIDITY_SENSOR,
+                    ),
+                    ac_humidity_controls=user_input.get(
+                        CONF_AC_HUMIDITY_CONTROLS, DEFAULT_AC_HUMIDITY_CONTROLS
+                    ),
                 )
 
-                # If no optional features enabled, skip sensors step and create entry directly
+                # Check if any optional features are enabled
+                assert self._step1_data is not None  # Set above
                 if not (
-                    use_external_temp
-                    or use_humidity
-                    or use_external_humidity
-                    or ac_humidity_controls
+                    self._step1_data.get("use_external_temp_sensor", False)
+                    or self._step1_data.get("use_humidity", False)
+                    or self._step1_data.get("use_external_humidity_sensor", False)
+                    or self._step1_data.get("ac_humidity_controls", False)
                 ):
-                    return await self._async_create_entry_with_defaults(user_input)
+                    return await self._async_create_entry_with_defaults(
+                        self._step1_data
+                    )
 
                 return await self.async_step_sensors()
 
@@ -222,53 +383,47 @@ class ClimateReactConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 # Check if light entity is a select type - if so, route to light_options step
                 light_entity = user_input.get(CONF_LIGHT_ENTITY)
                 if light_entity and light_entity.startswith("select."):
-                    # Store step 2 data and move to step 3
-                    self._step2_data = user_input
+                    # Store step 2 data as type-safe SensorStepData
+                    self._step2_data = SensorStepData(
+                        temperature_sensor=self._extract_optional_entity(
+                            user_input, CONF_TEMPERATURE_SENSOR
+                        ),
+                        humidity_sensor=self._extract_optional_entity(
+                            user_input, CONF_HUMIDITY_SENSOR
+                        ),
+                        humidifier_entity=self._extract_optional_entity(
+                            user_input, CONF_HUMIDIFIER_ENTITY
+                        ),
+                        light_entity=self._extract_optional_entity(
+                            user_input, CONF_LIGHT_ENTITY
+                        ),
+                    )
                     return await self.async_step_light_options()
 
                 # Otherwise, create entry
-                climate_entity = self._step1_data[CONF_CLIMATE_ENTITY]
+                assert self._step1_data is not None  # Set in async_step_user
+                climate_entity = self._step1_data["climate_entity"]
                 await self.async_set_unique_id(climate_entity)
                 self._abort_if_unique_id_configured()
 
-                data = {**self._step1_data}
-                data[CONF_TEMPERATURE_SENSOR] = (
-                    user_input.get(CONF_TEMPERATURE_SENSOR) or None
+                # Create type-safe config data with sensor step inputs
+                data = self._create_default_config_data(self._step1_data)
+                data.update(
+                    {
+                        CONF_TEMPERATURE_SENSOR: self._extract_optional_entity(
+                            user_input, CONF_TEMPERATURE_SENSOR
+                        ),
+                        CONF_HUMIDITY_SENSOR: self._extract_optional_entity(
+                            user_input, CONF_HUMIDITY_SENSOR
+                        ),
+                        CONF_HUMIDIFIER_ENTITY: self._extract_optional_entity(
+                            user_input, CONF_HUMIDIFIER_ENTITY
+                        ),
+                        CONF_LIGHT_ENTITY: self._extract_optional_entity(
+                            user_input, CONF_LIGHT_ENTITY
+                        ),
+                    }
                 )
-                data[CONF_HUMIDITY_SENSOR] = (
-                    user_input.get(CONF_HUMIDITY_SENSOR) or None
-                )
-                data[CONF_HUMIDIFIER_ENTITY] = (
-                    user_input.get(CONF_HUMIDIFIER_ENTITY) or None
-                )
-
-                # Prepare defaults
-                data[CONF_MIN_TEMP] = DEFAULT_MIN_TEMP
-                data[CONF_MAX_TEMP] = DEFAULT_MAX_TEMP
-                data[CONF_MIN_HUMIDITY] = DEFAULT_MIN_HUMIDITY
-                data[CONF_MAX_HUMIDITY] = DEFAULT_MAX_HUMIDITY
-                data[CONF_MIN_RUN_TIME] = DEFAULT_MIN_RUN_TIME
-                data[CONF_MODE_LOW_TEMP] = DEFAULT_MODE_LOW_TEMP
-                data[CONF_MODE_HIGH_TEMP] = DEFAULT_MODE_HIGH_TEMP
-                data[CONF_MODE_HIGH_HUMIDITY] = DEFAULT_MODE_HIGH_HUMIDITY
-                data[CONF_FAN_LOW_TEMP] = DEFAULT_FAN_MODE
-                data[CONF_FAN_HIGH_TEMP] = DEFAULT_FAN_MODE
-                data[CONF_FAN_HIGH_HUMIDITY] = DEFAULT_FAN_MODE
-                data[CONF_SWING_LOW_TEMP] = DEFAULT_SWING_MODE
-                data[CONF_SWING_HIGH_TEMP] = DEFAULT_SWING_MODE
-                data[CONF_SWING_HIGH_HUMIDITY] = DEFAULT_SWING_MODE
-                data[CONF_SWING_HORIZONTAL_LOW_TEMP] = DEFAULT_SWING_MODE
-                data[CONF_SWING_HORIZONTAL_HIGH_TEMP] = DEFAULT_SWING_MODE
-                data[CONF_SWING_HORIZONTAL_HIGH_HUMIDITY] = DEFAULT_SWING_MODE
-                data[CONF_TEMP_LOW_TEMP] = DEFAULT_TEMP_LOW_TEMP
-                data[CONF_TEMP_HIGH_TEMP] = DEFAULT_TEMP_HIGH_TEMP
-                data[CONF_TEMP_HIGH_HUMIDITY] = DEFAULT_TEMP_HIGH_HUMIDITY
-                data[CONF_DELAY_BETWEEN_COMMANDS] = DEFAULT_DELAY_BETWEEN_COMMANDS
-                data[CONF_TIMER_MINUTES] = DEFAULT_TIMER_MINUTES
-                data[CONF_ENABLED] = DEFAULT_ENABLED
-                data[CONF_LIGHT_ENTITY] = user_input.get(CONF_LIGHT_ENTITY)
-                data[CONF_LIGHT_SELECT_ON_OPTION] = DEFAULT_LIGHT_SELECT_ON_OPTION
-                data[CONF_LIGHT_SELECT_OFF_OPTION] = DEFAULT_LIGHT_SELECT_OFF_OPTION
 
                 # Generate title matching device name logic
                 state = self.hass.states.get(climate_entity)
@@ -341,7 +496,7 @@ class ClimateReactConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             assert self._step1_data is not None
             if not errors:
-                climate_entity = self._step1_data[CONF_CLIMATE_ENTITY]
+                climate_entity = self._step1_data["climate_entity"]
                 await self.async_set_unique_id(climate_entity)
                 self._abort_if_unique_id_configured()
 
@@ -431,46 +586,27 @@ class ClimateReactConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         )
 
     async def _async_create_entry_with_defaults(
-        self, step1_data: dict[str, Any]
+        self, step1_data: UserStepData
     ) -> config_entries.FlowResult:
         """Create entry with default values when no optional features are enabled."""
-        climate_entity = step1_data[CONF_CLIMATE_ENTITY]
+        climate_entity = step1_data["climate_entity"]
         await self.async_set_unique_id(climate_entity)
         self._abort_if_unique_id_configured()
 
-        data = {**step1_data}
-        data[CONF_TEMPERATURE_SENSOR] = None
-        data[CONF_HUMIDITY_SENSOR] = None
-        data[CONF_HUMIDIFIER_ENTITY] = None
-
-        # Prepare defaults
-        data[CONF_MIN_TEMP] = DEFAULT_MIN_TEMP
-        data[CONF_MAX_TEMP] = DEFAULT_MAX_TEMP
-        data[CONF_MIN_HUMIDITY] = DEFAULT_MIN_HUMIDITY
-        data[CONF_MAX_HUMIDITY] = DEFAULT_MAX_HUMIDITY
-        data[CONF_MIN_RUN_TIME] = DEFAULT_MIN_RUN_TIME
-        data[CONF_MODE_LOW_TEMP] = DEFAULT_MODE_LOW_TEMP
-        data[CONF_MODE_HIGH_TEMP] = DEFAULT_MODE_HIGH_TEMP
-        data[CONF_MODE_HIGH_HUMIDITY] = DEFAULT_MODE_HIGH_HUMIDITY
-        data[CONF_FAN_LOW_TEMP] = DEFAULT_FAN_MODE
-        data[CONF_FAN_HIGH_TEMP] = DEFAULT_FAN_MODE
-        data[CONF_FAN_HIGH_HUMIDITY] = DEFAULT_FAN_MODE
-        data[CONF_SWING_LOW_TEMP] = DEFAULT_SWING_MODE
-        data[CONF_SWING_HIGH_TEMP] = DEFAULT_SWING_MODE
-        data[CONF_SWING_HIGH_HUMIDITY] = DEFAULT_SWING_MODE
-        data[CONF_SWING_HORIZONTAL_LOW_TEMP] = DEFAULT_SWING_MODE
-        data[CONF_SWING_HORIZONTAL_HIGH_TEMP] = DEFAULT_SWING_MODE
-        data[CONF_SWING_HORIZONTAL_HIGH_HUMIDITY] = DEFAULT_SWING_MODE
-        data[CONF_TEMP_LOW_TEMP] = DEFAULT_TEMP_LOW_TEMP
-        data[CONF_TEMP_HIGH_TEMP] = DEFAULT_TEMP_HIGH_TEMP
-        data[CONF_TEMP_HIGH_HUMIDITY] = DEFAULT_TEMP_HIGH_HUMIDITY
-        data[CONF_DELAY_BETWEEN_COMMANDS] = DEFAULT_DELAY_BETWEEN_COMMANDS
-        data[CONF_TIMER_MINUTES] = DEFAULT_TIMER_MINUTES
-        data[CONF_ENABLED] = DEFAULT_ENABLED
-        data[CONF_ENABLE_LIGHT_CONTROL] = DEFAULT_ENABLE_LIGHT_CONTROL
-        data[CONF_LIGHT_ENTITY] = None
-        data[CONF_LIGHT_SELECT_ON_OPTION] = DEFAULT_LIGHT_SELECT_ON_OPTION
-        data[CONF_LIGHT_SELECT_OFF_OPTION] = DEFAULT_LIGHT_SELECT_OFF_OPTION
+        # Use type-safe helper to create complete config data
+        data = self._create_default_config_data(step1_data)
+        # Override defaults for simple case
+        data.update(
+            {
+                CONF_TEMPERATURE_SENSOR: None,
+                CONF_HUMIDITY_SENSOR: None,
+                CONF_HUMIDIFIER_ENTITY: None,
+                CONF_LIGHT_ENTITY: None,
+                CONF_ENABLE_LIGHT_CONTROL: step1_data.get(
+                    "enable_light_control", DEFAULT_ENABLE_LIGHT_CONTROL
+                ),
+            }
+        )
 
         # Generate title matching device name logic
         state = self.hass.states.get(climate_entity)
