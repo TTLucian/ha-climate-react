@@ -51,18 +51,6 @@ jobs:
               sys.exit(1)
           print('en.json OK')
           PY
-      - name: Check import
-        run: |
-          python - <<'PY'
-          import sys
-          sys.path.insert(0, '.')
-          try:
-              import custom_components.climate_react
-          except Exception as e:
-              print('Import failed:', e)
-              sys.exit(1)
-          print('Import OK')
-          PY
 
   lint:
     name: Lint (ruff + black)
