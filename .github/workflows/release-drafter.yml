@@ -1,5 +1,3 @@
-# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
-
 name: Release Drafter
 
 on:
@@ -19,7 +17,7 @@ jobs:
       - name: Get version from manifest.json
         id: get_version
         run: |
-          VERSION=$(grep '"version"' custom_components/climate_react/manifest.json | sed 's/.*"version": "\([^"]*\)".*/\1/')
+          VERSION=$(jq -r '.version' custom_components/climate_react/manifest.json)
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "Version found: $VERSION"
 
