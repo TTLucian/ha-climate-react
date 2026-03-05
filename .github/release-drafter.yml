@@ -6,20 +6,15 @@ on:
   push:
     branches:
       - main
-  pull_request:
-    types: [opened, reopened, synchronize]
 
 jobs:
   update_release_draft:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      pull-requests: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Get version from manifest.json
         id: get_version
@@ -28,52 +23,29 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "Version found: $VERSION"
 
-      - name: Read release notes
-        id: release_notes
-        run: |
-          RELEASE_FILE="release_notes/RELEASE_NOTES_v${{ steps.get_version.outputs.version }}.md"
-          if [ -f "$RELEASE_FILE" ]; then
-            echo "title=Version ${{ steps.get_version.outputs.version }}" >> $GITHUB_OUTPUT
-            echo "found=true" >> $GITHUB_OUTPUT
-            echo "Release notes found for version ${{ steps.get_version.outputs.version }}"
-          else
-            echo "No release notes file found: $RELEASE_FILE"
-            echo "title=Version ${{ steps.get_version.outputs.version }}" >> $GITHUB_OUTPUT
-            echo "found=false" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Create or Update Release with Release Notes
-        if: steps.release_notes.outputs.found == 'true'
+      - name: Create draft release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ steps.get_version.outputs.version }}
-          TITLE: ${{ steps.release_notes.outputs.title }}
         run: |
-          # Check if a published release already exists for this version — never touch it
-          EXISTING_PUBLISHED=$(gh release list --json tagName,isDraft --jq ".[] | select(.tagName == \"v${VERSION}\" and .isDraft == false) | .tagName")
+          # Never touch an already-published release
+          EXISTING_PUBLISHED=$(gh release list --json tagName,isDraft \
+            --jq ".[] | select(.tagName == \"v${VERSION}\" and .isDraft == false) | .tagName")
           if [ -n "$EXISTING_PUBLISHED" ]; then
             echo "Published release v${VERSION} already exists. Skipping."
             exit 0
           fi
 
-          # Check if a draft release already exists for this version
-          EXISTING_DRAFT=$(gh release list --json tagName,isDraft --jq ".[] | select(.tagName == \"v${VERSION}\" and .isDraft == true) | .tagName")
-
+          # Skip if a draft already exists
+          EXISTING_DRAFT=$(gh release list --json tagName,isDraft \
+            --jq ".[] | select(.tagName == \"v${VERSION}\" and .isDraft == true) | .tagName")
           if [ -n "$EXISTING_DRAFT" ]; then
-            echo "Updating existing draft release v${VERSION}"
-            gh release edit "v${VERSION}" \
-              --draft \
-              --title "$TITLE" \
-              --notes-file "release_notes/RELEASE_NOTES_v${VERSION}.md"
-          else
-            echo "Creating new draft release v${VERSION}"
-            gh release create "v${VERSION}" \
-              --draft \
-              --title "$TITLE" \
-              --notes-file "release_notes/RELEASE_NOTES_v${VERSION}.md"
+            echo "Draft release v${VERSION} already exists. Nothing to do."
+            exit 0
           fi
 
-      - name: Skip Release Creation
-        if: steps.release_notes.outputs.found == 'false'
-        run: |
-          echo "No release notes file found for version ${{ steps.get_version.outputs.version }}. Skipping release creation."
+          echo "Creating draft release v${VERSION}"
+          gh release create "v${VERSION}" \
+            --draft \
+            --title "v${VERSION}" \
+            --notes ""
