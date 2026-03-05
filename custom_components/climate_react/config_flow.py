@@ -179,27 +179,6 @@ class ClimateReactConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         Returns:
             Complete configuration dictionary with defaults
         """
-        from .const import (
-            DEFAULT_DELAY_BETWEEN_COMMANDS,
-            DEFAULT_ENABLED,
-            DEFAULT_FAN_MODE,
-            DEFAULT_LIGHT_SELECT_OFF_OPTION,
-            DEFAULT_LIGHT_SELECT_ON_OPTION,
-            DEFAULT_MAX_HUMIDITY,
-            DEFAULT_MAX_TEMP,
-            DEFAULT_MIN_HUMIDITY,
-            DEFAULT_MIN_RUN_TIME,
-            DEFAULT_MIN_TEMP,
-            DEFAULT_MODE_HIGH_HUMIDITY,
-            DEFAULT_MODE_HIGH_TEMP,
-            DEFAULT_MODE_LOW_TEMP,
-            DEFAULT_SWING_MODE,
-            DEFAULT_TEMP_HIGH_HUMIDITY,
-            DEFAULT_TEMP_HIGH_TEMP,
-            DEFAULT_TEMP_LOW_TEMP,
-            DEFAULT_TIMER_MINUTES,
-        )
-
         return {
             **base_data,
             CONF_MIN_TEMP: DEFAULT_MIN_TEMP,

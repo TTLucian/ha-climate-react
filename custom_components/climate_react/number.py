@@ -107,7 +107,6 @@ class ClimateReactMinTempNumber(ClimateReactBaseNumber):
     _attr_native_max_value = 40
     _attr_native_step = 0.5
     _config_key = CONF_MIN_TEMP
-    _service_key = "min_temp"
 
     def __init__(self, controller: ClimateReactController, entry: ConfigEntry) -> None:
         """Initialize the min temp number."""
@@ -128,7 +127,6 @@ class ClimateReactMaxTempNumber(ClimateReactBaseNumber):
     _attr_native_max_value = 40
     _attr_native_step = 0.5
     _config_key = CONF_MAX_TEMP
-    _service_key = "max_temp"
 
     def __init__(self, controller: ClimateReactController, entry: ConfigEntry) -> None:
         """Initialize the max temp number."""
@@ -149,7 +147,6 @@ class ClimateReactMinHumidityNumber(ClimateReactBaseNumber):
     _attr_native_max_value = 100
     _attr_native_step = 1
     _config_key = CONF_MIN_HUMIDITY
-    _service_key = "min_humidity"
 
     def __init__(self, controller: ClimateReactController, entry: ConfigEntry) -> None:
         """Initialize the min humidity number."""
@@ -170,7 +167,6 @@ class ClimateReactMaxHumidityNumber(ClimateReactBaseNumber):
     _attr_native_max_value = 100
     _attr_native_step = 1
     _config_key = CONF_MAX_HUMIDITY
-    _service_key = "max_humidity"
 
     def __init__(self, controller: ClimateReactController, entry: ConfigEntry) -> None:
         """Initialize the max humidity number."""
@@ -191,7 +187,6 @@ class ClimateReactTempLowTempNumber(ClimateReactBaseNumber):
     _attr_native_max_value = 40
     _attr_native_step = 0.5
     _config_key = CONF_TEMP_LOW_TEMP
-    _service_key = "temp_low"
 
     def __init__(self, controller: ClimateReactController, entry: ConfigEntry) -> None:
         """Initialize the target temp low number."""
@@ -212,7 +207,6 @@ class ClimateReactTempHighTempNumber(ClimateReactBaseNumber):
     _attr_native_max_value = 40
     _attr_native_step = 0.5
     _config_key = CONF_TEMP_HIGH_TEMP
-    _service_key = "temp_high"
 
     def __init__(self, controller: ClimateReactController, entry: ConfigEntry) -> None:
         """Initialize the target temp high number."""
@@ -233,7 +227,6 @@ class ClimateReactTempHighHumidityNumber(ClimateReactBaseNumber):
     _attr_native_max_value = 40
     _attr_native_step = 0.5
     _config_key = CONF_TEMP_HIGH_HUMIDITY
-    _service_key = "temp_humidity"
 
     def __init__(self, controller: ClimateReactController, entry: ConfigEntry) -> None:
         """Initialize the target temp humidity number."""
@@ -254,7 +247,6 @@ class ClimateReactDelayBetweenCommandsNumber(ClimateReactBaseNumber):
     _attr_native_max_value = 5000
     _attr_native_step = 100
     _config_key = CONF_DELAY_BETWEEN_COMMANDS
-    _service_key = "delay_between_commands"
 
     def __init__(self, controller: ClimateReactController, entry: ConfigEntry) -> None:
         """Initialize the delay between commands number."""
@@ -277,7 +269,6 @@ class ClimateReactMinRunTimeNumber(ClimateReactBaseNumber):
     _attr_native_max_value = 120
     _attr_native_step = 1
     _config_key = CONF_MIN_RUN_TIME
-    _service_key = "min_run_time"
 
     def __init__(self, controller: ClimateReactController, entry: ConfigEntry) -> None:
         """Initialize the min run time number."""

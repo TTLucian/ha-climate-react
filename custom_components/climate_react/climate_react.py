@@ -18,7 +18,6 @@ from homeassistant.core import (
     EventStateChangedData,
     HomeAssistant,
     State,
-    callback,
 )
 from homeassistant.helpers.event import async_track_state_change_event
 
@@ -133,7 +132,6 @@ class ClimateReactController:
         self._unsub_temp: Callable[[], None] | None = None
         self._unsub_humidity: Callable[[], None] | None = None
         self._unsub_climate: Callable[[], None] | None = None
-        self._unsub_climate_availability: Callable[[], None] | None = None
         self._enabled = entry.data.get(CONF_ENABLED, DEFAULT_ENABLED)
         self._last_temp: float | None = None
         self._last_humidity: float | None = None
@@ -143,6 +141,7 @@ class ClimateReactController:
         self._last_mode_change_time: datetime | None = None
         self._last_set_hvac_mode: str | None = None
         self._cached_config: dict[str, Any] | None = None  # Cache for merged config
+        self._cached_min_run_time: int | None = None  # Cached min run time in minutes
         # Initialize timer expiry timestamp (migrate from old minutes format if needed)
         config_data = {**entry.data, **entry.options}
         self._timer_expiry: Optional[float] = None
@@ -267,11 +266,6 @@ class ClimateReactController:
         except Exception as exc:
             _LOGGER.exception("Failed to create/enqueue tracked task: %s", exc)
 
-    async def _create_tracked_task_throttled(self, coro):
-        """Create a tracked task with throttling to prevent resource exhaustion."""
-        async with self._task_semaphore:
-            return await coro
-
     def _create_timer_task(self, coro) -> asyncio.Task:
         """Create a timer task that is managed separately from pending tasks."""
         return self.hass.loop.create_task(coro)
@@ -329,7 +323,7 @@ class ClimateReactController:
     @property
     def _min_run_time_minutes(self) -> int:
         """Get cached minimum run time in minutes."""
-        if not hasattr(self, "_cached_min_run_time"):
+        if self._cached_min_run_time is None:
             self._cached_min_run_time = self.config.get(
                 CONF_MIN_RUN_TIME, DEFAULT_MIN_RUN_TIME
             )
@@ -338,9 +332,8 @@ class ClimateReactController:
     def _invalidate_config_cache(self) -> None:
         """Invalidate the config cache when options are updated."""
         self._cached_config = None
-        # Clear cached derived values
-        if hasattr(self, "_cached_min_run_time"):
-            delattr(self, "_cached_min_run_time")
+        # Reset cached derived values
+        self._cached_min_run_time = None
 
     def _validate_entity_id(self, entity_id: str) -> bool:
         """Validate entity exists and is accessible."""
@@ -954,18 +947,13 @@ class ClimateReactController:
                 self._async_humidity_changed,
             )
 
-        # Subscribe to climate entity changes for manual override detection
+        # Subscribe to climate entity changes: manual override detection, threshold
+        # sync, and state evaluation. A single listener replaces what was previously
+        # two separate listeners on the same entity.
         self._unsub_climate = async_track_state_change_event(
             self.hass,
             [self.climate_entity],
             self._async_climate_state_changed,
-        )
-
-        # Watch climate entity availability to re-evaluate when it comes online
-        self._unsub_climate_availability = async_track_state_change_event(
-            self.hass,
-            [self.climate_entity],
-            self._async_climate_available,
         )
 
         # Start the task processor for efficient background processing
@@ -1001,8 +989,6 @@ class ClimateReactController:
             self._unsub_humidity()
         if self._unsub_climate:
             self._unsub_climate()
-        if self._unsub_climate_availability:
-            self._unsub_climate_availability()
 
         # Cancel timer task with proper cleanup
         # Lock protects timer task cancellation to prevent race conditions
@@ -1131,17 +1117,6 @@ class ClimateReactController:
             self._invalidate_config_cache()
         _LOGGER.debug("Option updated for %s: %s = %s", self.climate_entity, key, value)
 
-    @callback
-    async def _async_climate_available(
-        self, event: Event[EventStateChangedData]
-    ) -> None:
-        """Handle climate entity becoming available."""
-        new_state: State | None = event.data.get("new_state")
-        if not new_state or new_state.state in (STATE_UNAVAILABLE, STATE_UNKNOWN):
-            return
-        await self._async_sync_thresholds_to_climate(new_state)
-        await self._async_evaluate_state()
-
     async def _async_sync_thresholds_to_climate(self, climate_state: State) -> None:
         """Sync configured thresholds to climate entity limits."""
         # Lock protects climate limit synchronization to ensure atomic updates
@@ -1208,7 +1183,6 @@ class ClimateReactController:
                 )
                 self._invalidate_config_cache()
 
-    @callback
     async def _async_temperature_changed(
         self, event: Event[EventStateChangedData]
     ) -> None:
@@ -1262,7 +1236,8 @@ class ClimateReactController:
             temperature,
         )
         self._debounce_temp_timer = self.hass.loop.call_later(
-            delay, lambda: asyncio.create_task(self._process_pending_temperature())
+            delay,
+            lambda: self._create_tracked_task(self._process_pending_temperature()),
         )
 
     async def _process_pending_temperature(self) -> None:
@@ -1288,7 +1263,7 @@ class ClimateReactController:
             humidity,
         )
         self._debounce_humidity_timer = self.hass.loop.call_later(
-            delay, lambda: asyncio.create_task(self._process_pending_humidity())
+            delay, lambda: self._create_tracked_task(self._process_pending_humidity())
         )
 
     async def _process_pending_humidity(self) -> None:
@@ -1298,14 +1273,22 @@ class ClimateReactController:
             self._pending_humidity = None
             await self._async_handle_humidity_threshold(humidity)
 
-    @callback
     async def _async_climate_state_changed(
         self, event: Event[EventStateChangedData]
     ) -> None:
-        """Detect manual mode changes outside of automation."""
+        """Handle all climate entity state changes.
+
+        Covers: threshold sync, state evaluation, timer management when disabled,
+        and manual override detection when enabled.
+        """
         new_state: State | None = event.data.get("new_state")
         if not new_state or new_state.state in (STATE_UNAVAILABLE, STATE_UNKNOWN):
             return
+
+        # Sync thresholds to climate entity limits on every valid state update.
+        # This replaces the former separate _async_climate_available listener.
+        await self._async_sync_thresholds_to_climate(new_state)
+        await self._async_evaluate_state()
 
         # Capture enabled state and timer expiry atomically
         # Lock protects reading timer state to get consistent snapshot
@@ -1343,7 +1326,6 @@ class ClimateReactController:
             await self._async_persist_mode_state()
             await self._async_apply_light_behavior(enabled=False)
 
-    @callback
     async def _async_humidity_changed(
         self, event: Event[EventStateChangedData]
     ) -> None:
@@ -1824,8 +1806,15 @@ class ClimateReactController:
                 return option
             supported = climate_state.attributes.get(supported_attr)
             if isinstance(supported, list) and option not in supported:
-                # choose first supported option if available
-                return supported[0] if supported else None
+                # Skip rather than silently substituting supported[0], which could
+                # pick an unintended mode (e.g. "off" for fan) or turn off the AC.
+                _LOGGER.debug(
+                    "Option '%s' not in supported %s for %s, skipping",
+                    option,
+                    supported_attr,
+                    self.climate_entity,
+                )
+                return None
             return option
 
         hvac_mode = _clamp(hvac_mode, "hvac_modes")
@@ -1974,7 +1963,7 @@ class ClimateReactController:
                     target_temp,
                     self.climate_entity,
                 )
-            elif current_target_temp != target_temp:
+            else:
                 if not await self._async_safe_service_call(
                     "climate",
                     "set_temperature",
@@ -2003,7 +1992,7 @@ class ClimateReactController:
                     fan_mode,
                     self.climate_entity,
                 )
-            elif current_fan_mode != fan_mode:
+            else:
                 if not await self._async_safe_service_call(
                     "climate",
                     "set_fan_mode",
@@ -2032,7 +2021,7 @@ class ClimateReactController:
                     swing_mode,
                     self.climate_entity,
                 )
-            elif current_swing_mode != swing_mode:
+            else:
                 if not await self._async_safe_service_call(
                     "climate",
                     "set_swing_mode",
@@ -2063,7 +2052,7 @@ class ClimateReactController:
                     swing_horizontal_mode,
                     self.climate_entity,
                 )
-            elif current_swing_horizontal != swing_horizontal_mode:
+            else:
                 if self.hass.services.has_service(
                     "climate", "set_swing_horizontal_mode"
                 ):
@@ -2185,19 +2174,26 @@ class ClimateReactController:
             else:
                 self._timer_expiry = None
 
-            await self._async_persist_timer()
-            self._notify_timer_listeners()
+            # Capture expiry for use outside the lock
+            timer_expiry = self._timer_expiry
 
-            if self._timer_expiry is not None:
+            if timer_expiry is not None:
                 self._timer_task = self._create_timer_task(self._async_timer_loop())
-                _LOGGER.info(
-                    "Timer started for %s: %d minutes (expires at %s)",
-                    self.climate_entity,
-                    new_minutes,
-                    datetime.fromtimestamp(self._timer_expiry).isoformat(),
-                )
-            else:
-                _LOGGER.debug("Timer cleared for %s", self.climate_entity)
+
+        # Persist and notify OUTSIDE state_lock to maintain lock hierarchy:
+        # _config_lock must never be acquired while holding _state_lock.
+        await self._async_persist_timer_value(timer_expiry)
+        self._notify_timer_listeners()
+
+        if timer_expiry is not None:
+            _LOGGER.info(
+                "Timer started for %s: %d minutes (expires at %s)",
+                self.climate_entity,
+                new_minutes,
+                datetime.fromtimestamp(timer_expiry).isoformat(),
+            )
+        else:
+            _LOGGER.debug("Timer cleared for %s", self.climate_entity)
 
     async def _async_migrate_timer_format(self) -> None:
         """Migrate timer from old minutes format to new expiry format."""
@@ -2268,6 +2264,7 @@ class ClimateReactController:
 
         # Don't hold timer lock while calling async_disable to avoid deadlocks
         if self._enabled:
+            # async_disable internally calls _async_apply_light_behavior(enabled=False)
             await self.async_disable()
         else:
             # Turn off climate if not already off
@@ -2282,15 +2279,12 @@ class ClimateReactController:
                         "Failed to turn off climate entity %s during timer expiration",
                         self.climate_entity,
                     )
+            # Automation was already disabled; still apply light behavior
+            await self._async_apply_light_behavior(enabled=False)
 
         # Now persist without holding timer lock
         await self._async_persist_timer_value(None)
         self._notify_timer_listeners()
-        await self._async_apply_light_behavior(enabled=False)
-
-    async def _async_persist_timer(self) -> None:
-        """Persist current timer expiry timestamp to config entry options."""
-        await self._async_persist_timer_value(self._timer_expiry)
 
     async def _async_persist_timer_value(self, timer_expiry: float | None) -> None:
         """Persist timer expiry value to config (call without holding timer lock)."""
@@ -2346,4 +2340,4 @@ class ClimateReactController:
     def _is_climate_off_state(state: State | None) -> bool:
         if not state:
             return True
-        return state.state == MODE_OFF or state.state == "off"
+        return state.state == MODE_OFF

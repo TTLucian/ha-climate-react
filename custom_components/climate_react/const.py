@@ -85,7 +85,6 @@ MODE_FAN_ONLY = "fan_only"
 
 # Data keys
 DATA_COORDINATOR = "coordinator"
-DATA_UNSUB = "unsub"
 
 # Circuit breaker constants
 CIRCUIT_BREAKER_MAX_FAILURES = 3
