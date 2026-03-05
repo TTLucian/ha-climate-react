@@ -89,5 +89,21 @@
     "abort": {
       "reconfigure_successful": "Configuration updated successfully. Integration will reload."
     }
+  },
+  "entity": {
+    "select": {
+      "mode_low_humidity": {
+        "name": "AC Mode (Low Humidity)"
+      },
+      "fan_low_humidity": {
+        "name": "Fan Mode (Low Humidity)"
+      },
+      "swing_low_humidity": {
+        "name": "Swing Mode (Low Humidity)"
+      },
+      "swing_horizontal_low_humidity": {
+        "name": "Horizontal Swing Mode (Low Humidity)"
+      }
+    }
   }
 }

@@ -90,10 +90,20 @@
       "reconfigure_successful": "Configuration updated successfully. Integration will reload."
     }
   },
-  "climate": {
-    "mode_low_humidity": "AC Mode (Low Humidity)",
-    "fan_low_humidity": "Fan Mode (Low Humidity)",
-    "swing_low_humidity": "Swing Mode (Low Humidity)",
-    "swing_horizontal_low_humidity": "Horizontal Swing Mode (Low Humidity)"
+  "entity": {
+    "select": {
+      "mode_low_humidity": {
+        "name": "AC Mode (Low Humidity)"
+      },
+      "fan_low_humidity": {
+        "name": "Fan Mode (Low Humidity)"
+      },
+      "swing_low_humidity": {
+        "name": "Swing Mode (Low Humidity)"
+      },
+      "swing_horizontal_low_humidity": {
+        "name": "Horizontal Swing Mode (Low Humidity)"
+      }
+    }
   }
 }
