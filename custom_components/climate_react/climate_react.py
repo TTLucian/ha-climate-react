@@ -323,11 +323,11 @@ class ClimateReactController:
     @property
     def _min_run_time_minutes(self) -> int:
         """Get cached minimum run time in minutes."""
-        if self._cached_min_run_time is None:
-            self._cached_min_run_time = self.config.get(
-                CONF_MIN_RUN_TIME, DEFAULT_MIN_RUN_TIME
-            )
-        return self._cached_min_run_time
+        result = self._cached_min_run_time
+        if result is None:
+            result = self.config.get(CONF_MIN_RUN_TIME, DEFAULT_MIN_RUN_TIME)
+            self._cached_min_run_time = result
+        return result
 
     def _invalidate_config_cache(self) -> None:
         """Invalidate the config cache when options are updated."""

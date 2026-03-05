@@ -316,7 +316,7 @@ class ClimateReactTimerNumber(ClimateReactBaseNumber):
         self.async_write_ha_state()
 
     @property
-    def native_value(self) -> float | None:
+    def native_value(self) -> float | None:  # type: ignore[override]
         return self._controller.timer_minutes
 
     async def async_set_native_value(self, value: float) -> None:

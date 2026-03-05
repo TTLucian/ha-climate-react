@@ -54,12 +54,12 @@ class ClimateReactSwitch(SwitchEntity):
         }
 
     @property
-    def is_on(self) -> bool:
+    def is_on(self) -> bool:  # type: ignore[override]
         """Return true if Climate React is enabled."""
         return self._controller.enabled
 
     @property
-    def available(self) -> bool:
+    def available(self) -> bool:  # type: ignore[override]
         """Return true if the climate entity is available."""
         climate_state = self._controller.hass.states.get(
             self._controller.climate_entity
@@ -69,7 +69,7 @@ class ClimateReactSwitch(SwitchEntity):
         return climate_state.state not in (STATE_UNAVAILABLE, STATE_UNKNOWN)
 
     @property
-    def icon(self) -> str:
+    def icon(self) -> str:  # type: ignore[override]
         """Return the icon for the switch."""
         return "mdi:thermostat-cog" if self.is_on else "mdi:thermostat"
 
@@ -84,7 +84,7 @@ class ClimateReactSwitch(SwitchEntity):
         self.async_write_ha_state()
 
     @property
-    def extra_state_attributes(self) -> dict[str, Any]:
+    def extra_state_attributes(self) -> dict[str, Any]:  # type: ignore[override]
         """Return extra state attributes."""
         from .const import (
             CONF_MAX_HUMIDITY,

@@ -233,7 +233,7 @@ class ClimateReactBaseSelect(SelectEntity):
         }
 
     @property
-    def options(self) -> list[str]:
+    def options(self) -> list[str]:  # type: ignore[override]
         """Return the list of available options."""
         return getattr(self, "_attr_options", [])
 
@@ -560,7 +560,7 @@ class ClimateReactLightBehaviorSelect(ClimateReactBaseSelect):
             self._attr_current_option = LIGHT_BEHAVIOR_UNCHANGED
 
     @property
-    def available(self) -> bool:
+    def available(self) -> bool:  # type: ignore[override]
         return self._controller.light_entity is not None
 
 

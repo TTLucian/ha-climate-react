@@ -75,10 +75,15 @@ from .const import (
 _LOGGER = logging.getLogger(__name__)
 
 
-class UserStepData(TypedDict, total=False):
-    """Type-safe data structure for user step configuration."""
+class _UserStepDataRequired(TypedDict):
+    """Required fields for user step configuration."""
 
     climate_entity: str
+
+
+class UserStepData(_UserStepDataRequired, total=False):
+    """Type-safe data structure for user step configuration."""
+
     enable_light_control: bool
     use_external_temp_sensor: bool
     use_humidity: bool
