@@ -2,7 +2,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/github/v/release/TTLucian/ha-climate-react?style=for-the-badge" />
-  <img src="https://img.shields.io/github/license/TTLucian/ha-climate-react?style=for-the-badge" />
+  <img src=https://img.shields.io/badge/license-MIT-green/ha-climate-react?style=for-the-badge" />
   <img src="https://img.shields.io/badge/HACS-Custom-orange.svg?style=for-the-badge" />
   <img src="https://img.shields.io/github/actions/workflow/status/TTLucian/ha-climate-react/ci.yml?style=for-the-badge" />
 </p>
