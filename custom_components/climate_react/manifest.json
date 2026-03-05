@@ -1,22 +1,15 @@
 {
-  "domain": "climate_react",
-  "name": "Climate React",
-  "version": "0.2.05",
-  "documentation": "https://github.com/TTLucian/ha-climate-react",
-  "issue_tracker": "https://github.com/TTLucian/ha-climate-react/issues",
-  "requirements": [],
+  "after_dependencies": ["logbook"],
   "codeowners": ["@TTLucian"],
   "config_flow": true,
-  "diagnostics": true,
   "dependencies": [],
-  "iot_class": "local_polling",
+  "documentation": "https://github.com/TTLucian/ha-climate-react",
+  "domain": "climate_react",
   "integration_type": "device",
+  "iot_class": "local_polling",
+  "issue_tracker": "https://github.com/TTLucian/ha-climate-react/issues",
   "loggers": ["custom_components.climate_react"],
-  "icon": "mdi:thermostat-auto",
-  "platforms": [
-    "number",
-    "select",
-    "switch"
-  ],
-  "after_dependencies": ["logbook"]
+  "name": "Climate React",
+  "requirements": [],
+  "version": "0.2.05"
 }

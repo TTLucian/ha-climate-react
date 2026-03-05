@@ -142,6 +142,7 @@ class ClimateReactController:
         self._last_set_hvac_mode: str | None = None
         self._cached_config: dict[str, Any] | None = None  # Cache for merged config
         self._cached_min_run_time: int | None = None  # Cached min run time in minutes
+        self._needs_timer_migration: bool = False
         # Initialize timer expiry timestamp (migrate from old minutes format if needed)
         config_data = {**entry.data, **entry.options}
         self._timer_expiry: Optional[float] = None
@@ -967,7 +968,7 @@ class ClimateReactController:
         await self._async_start_timer_if_needed()
 
         # Handle timer migration if needed
-        if hasattr(self, "_needs_timer_migration") and self._needs_timer_migration:
+        if self._needs_timer_migration:
             try:
                 await self._async_migrate_timer_format()
             except Exception as exc:
@@ -990,17 +991,19 @@ class ClimateReactController:
         if self._unsub_climate:
             self._unsub_climate()
 
-        # Cancel timer task with proper cleanup
-        # Lock protects timer task cancellation to prevent race conditions
-        # during shutdown when timer operations might still be active
-        async with self._state_lock:
-            if self._timer_task:
-                self._timer_task.cancel()
-                try:
-                    await self._timer_task
-                except asyncio.CancelledError:
-                    pass
-                self._timer_task = None
+        # Cancel timer task without holding _state_lock.
+        # The timer loop's finally block assigns self._timer_task = None directly
+        # (without a lock), so cancelling and awaiting here is safe without the lock.
+        # Holding _state_lock while awaiting the timer task would deadlock because
+        # the task's finally block previously tried to acquire the same lock.
+        timer_task = self._timer_task
+        self._timer_task = None
+        if timer_task:
+            timer_task.cancel()
+            try:
+                await timer_task
+            except asyncio.CancelledError:
+                pass
 
         # Cancel task processor
         # Signal processor to stop accepting new work and exit when queue empty
@@ -2209,35 +2212,64 @@ class ClimateReactController:
             _LOGGER.warning("Failed to migrate timer format: %s", exc)
 
     async def _async_start_timer_if_needed(self) -> None:
-        """Restart timer loop on setup if timer hasn't expired."""
-        # Lock protects timer state check and task creation to prevent
-        # race conditions when multiple timer operations occur during startup
+        """Restart timer loop on setup, or fire missed expiry if HA was down when it elapsed."""
+        missed_expiry: float | None = None
         async with self._state_lock:
-            if (
-                self._timer_expiry is not None
-                and time.time() < self._timer_expiry
-                and not self._timer_task
-            ):
-                self._timer_task = self._create_timer_task(self._async_timer_loop())
+            expiry = self._timer_expiry
+            if expiry is None:
+                return
+            if time.time() < expiry:
+                # Timer still in the future — resume the countdown
+                if not self._timer_task:
+                    self._timer_task = self._create_timer_task(self._async_timer_loop())
+            else:
+                # Timer expired while HA was down — consume the stale expiry
+                # so _async_handle_timer_expired finds a clean state (no double-fire),
+                # then fire the action outside the lock (avoid lock re-entrancy).
+                self._timer_expiry = None
+                missed_expiry = expiry
+
+        if missed_expiry is not None:
+            _LOGGER.warning(
+                "Timer for %s expired while HA was down (expiry: %s); "
+                "executing missed expiry action now",
+                self.climate_entity,
+                datetime.fromtimestamp(missed_expiry).isoformat(),
+            )
+            await self._async_handle_timer_expired()
 
     async def _async_timer_loop(self) -> None:
         """Timer loop that runs until expiry timestamp."""
         try:
             while True:
-                # Lock protects timer expiry check to prevent race conditions
-                # when timer is being modified by async_set_timer concurrently
+                # Take a consistent snapshot under lock, then release before any await.
+                # This prevents the loop from holding _state_lock across a suspension
+                # point, which would cause a deadlock with _async_handle_timer_expired
+                # (which also needs _state_lock) and with async_shutdown.
                 async with self._state_lock:
                     current_time = time.time()
-                    if self._timer_expiry is None or current_time >= self._timer_expiry:
-                        # Timer has expired or was cleared
-                        if self._timer_expiry is not None:
-                            await self._async_handle_timer_expired()
-                        break
+                    expiry_snapshot = (
+                        self._timer_expiry
+                    )  # local copy so Pylance can narrow
+                    timer_expired = (
+                        expiry_snapshot is not None and current_time >= expiry_snapshot
+                    )
+                    should_stop = expiry_snapshot is None or timer_expired
+                    # expiry_snapshot is guaranteed non-None when not should_stop
+                    remaining_seconds = (
+                        (expiry_snapshot - current_time)
+                        if expiry_snapshot is not None and not should_stop
+                        else 0.0
+                    )
 
-                    # Sleep until next minute boundary or expiry, whichever comes first
-                    remaining_seconds = self._timer_expiry - current_time
-                    sleep_time = min(60, remaining_seconds)
+                # Handle expiry and break OUTSIDE the lock to avoid re-entrant
+                # lock acquisition inside _async_handle_timer_expired.
+                if timer_expired:
+                    await self._async_handle_timer_expired()
+                if should_stop:
+                    break
 
+                sleep_time = min(60, remaining_seconds)
                 if sleep_time > 0:
                     await asyncio.sleep(sleep_time)
 
@@ -2247,10 +2279,10 @@ class ClimateReactController:
         except asyncio.CancelledError:
             _LOGGER.debug("Timer task cancelled for %s", self.climate_entity)
         finally:
-            # Lock protects timer task cleanup to ensure thread-safe
-            # task reference management during timer loop termination
-            async with self._state_lock:
-                self._timer_task = None
+            # Direct assignment without acquiring _state_lock: the lock may be held
+            # by async_shutdown (which cancels this task and then awaits it).
+            # Acquiring _state_lock here would deadlock shutdown.
+            self._timer_task = None
 
     async def _async_handle_timer_expired(self) -> None:
         """Handle actions when timer reaches zero."""
