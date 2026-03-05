@@ -4,7 +4,7 @@
   <img src="https://img.shields.io/github/v/release/TTLucian/ha-climate-react?style=for-the-badge" />
   <a href="https://raw.githubusercontent.com/TTLucian/ha-solar-ac-controller/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-green?style=for-the-badge" /></a>
   <img src="https://img.shields.io/badge/HACS-Custom-orange.svg?style=for-the-badge" />
-  <img src="https://img.shields.io/github/actions/workflow/status/TTLucian/ha-climate-react/ci.yml?style=for-the-badge" />
+  <a href="https://github.com/TTLucian/ha-climate-react/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/TTLucian/ha-climate-react/ci.yml?style=for-the-badge" /></a>
 </p>
 
 <p align="center">
