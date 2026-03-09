@@ -77,6 +77,7 @@ DEFAULT_TIMER_MINUTES = 0
 
 # HVAC modes
 MODE_OFF = "off"
+MODE_NONE = "none"  # Sentinel: do nothing when threshold is crossed
 MODE_HEAT = "heat"
 MODE_COOL = "cool"
 MODE_DRY = "dry"

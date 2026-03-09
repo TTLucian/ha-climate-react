@@ -33,6 +33,7 @@ from .const import (
     LIGHT_BEHAVIOR_OFF,
     LIGHT_BEHAVIOR_ON,
     LIGHT_BEHAVIOR_UNCHANGED,
+    MODE_NONE,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -216,6 +217,9 @@ class ClimateReactBaseSelect(SelectEntity):
 
     _attr_has_entity_name = True
     _allowed_options: list[str] | None = None  # Optional filter for allowed options
+    _static_extra_options: list[
+        str
+    ] = []  # Always-available options (not from climate attributes)
     _attr_options: list[str] = []  # Initialize with empty list
     _climate_attr: str | None = None
     _config_key: str
@@ -273,6 +277,11 @@ class ClimateReactBaseSelect(SelectEntity):
                 if self._allowed_options is not None:
                     options = [opt for opt in options if opt in self._allowed_options]
 
+        # Append static options (e.g. MODE_NONE) that are always available
+        for extra in self._static_extra_options:
+            if extra not in options:
+                options.append(extra)
+
         self._attr_options = options
 
         # Clamp current option to supported list
@@ -320,6 +329,7 @@ class ClimateReactModeLowTempSelect(ClimateReactBaseSelect):
     _config_key = CONF_MODE_LOW_TEMP
     _climate_attr = "hvac_modes"
     _allowed_options = ["heat", "fan_only", "off"]
+    _static_extra_options = [MODE_NONE]
 
     def __init__(self, controller: ClimateReactController, entry: ConfigEntry) -> None:
         """Initialize the select."""
@@ -338,6 +348,7 @@ class ClimateReactModeHighTempSelect(ClimateReactBaseSelect):
     _config_key = CONF_MODE_HIGH_TEMP
     _climate_attr = "hvac_modes"
     _allowed_options = ["cool", "fan_only", "off"]
+    _static_extra_options = [MODE_NONE]
 
     def __init__(self, controller: ClimateReactController, entry: ConfigEntry) -> None:
         """Initialize the select."""
@@ -356,6 +367,7 @@ class ClimateReactModeHighHumiditySelect(ClimateReactBaseSelect):
     _config_key = CONF_MODE_HIGH_HUMIDITY
     _climate_attr = "hvac_modes"
     _allowed_options = ["dry", "fan_only", "off"]
+    _static_extra_options = [MODE_NONE]
 
     def __init__(self, controller: ClimateReactController, entry: ConfigEntry) -> None:
         """Initialize the select."""
@@ -569,6 +581,7 @@ class ClimateReactModeLowHumiditySelect(ClimateReactBaseSelect):
 
     _attr_translation_key = "mode_low_humidity"
     _allowed_options = ["auto", "dry", "off", "heat", "cool", "fan_only"]
+    _static_extra_options = [MODE_NONE]
 
     def __init__(self, controller: ClimateReactController, entry: ConfigEntry) -> None:
         """Initialize the select."""
@@ -584,6 +597,9 @@ class ClimateReactModeLowHumiditySelect(ClimateReactBaseSelect):
                 for opt in state.attributes["hvac_modes"]
                 if opt in self._allowed_options
             ]
+        for extra in self._static_extra_options:
+            if extra not in options:
+                options.append(extra)
         self._attr_options = options
 
 

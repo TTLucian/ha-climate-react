@@ -75,6 +75,7 @@ from .const import (
     MAX_CONCURRENT_BACKGROUND_TASKS,
     MAX_RETRY_ATTEMPTS,
     MAX_STATE_LOG_ENTRIES,
+    MODE_NONE,
     MODE_OFF,
 )
 
@@ -1070,6 +1071,16 @@ class ClimateReactController:
     async def async_disable(self) -> None:
         """Disable Climate React."""
         self._enabled = False
+        # Turn off the climate entity when automation is disabled (matches Node-RED behavior:
+        # switch turning off immediately sends climate.set_hvac_mode("off"))
+        if not self._is_climate_off():
+            if not await self._async_safe_service_call(
+                "climate", "turn_off", {"entity_id": self.climate_entity}
+            ):
+                _LOGGER.warning(
+                    "Failed to turn off climate entity %s on disable",
+                    self.climate_entity,
+                )
         if self.timer_minutes > 0 and self._is_climate_off():
             await self.async_set_timer(0)
         await self._async_apply_light_behavior(enabled=False)
@@ -1476,6 +1487,12 @@ class ClimateReactController:
         if temperature < min_temp:
             # Low temperature - trigger heating
             mode = config[CONF_MODE_LOW_TEMP]
+            if mode == MODE_NONE:
+                _LOGGER.debug(
+                    "Low temp threshold crossed for %s but mode is 'none', skipping",
+                    self.climate_entity,
+                )
+                return
             fan_mode = config.get(CONF_FAN_LOW_TEMP)
             swing_mode = config.get(CONF_SWING_LOW_TEMP)
             swing_horizontal_mode = config.get(CONF_SWING_HORIZONTAL_LOW_TEMP)
@@ -1509,6 +1526,12 @@ class ClimateReactController:
         elif temperature > max_temp:
             # High temperature - trigger cooling
             mode = config[CONF_MODE_HIGH_TEMP]
+            if mode == MODE_NONE:
+                _LOGGER.debug(
+                    "High temp threshold crossed for %s but mode is 'none', skipping",
+                    self.climate_entity,
+                )
+                return
             fan_mode = config.get(CONF_FAN_HIGH_TEMP)
             swing_mode = config.get(CONF_SWING_HIGH_TEMP)
             swing_horizontal_mode = config.get(CONF_SWING_HORIZONTAL_HIGH_TEMP)
@@ -1645,28 +1668,34 @@ class ClimateReactController:
 
             # Trigger dehumidify mode on climate entity
             mode = config.get(CONF_MODE_HIGH_HUMIDITY)
-            fan_mode = config.get(CONF_FAN_HIGH_HUMIDITY)
-            swing_mode = config.get(CONF_SWING_HIGH_HUMIDITY)
-            swing_horizontal_mode = config.get(CONF_SWING_HORIZONTAL_HIGH_HUMIDITY)
-            target_temp = config.get(CONF_TEMP_HIGH_HUMIDITY)
+            if mode == MODE_NONE:
+                _LOGGER.debug(
+                    "High humidity threshold crossed for %s but mode is 'none', skipping climate command",
+                    self.climate_entity,
+                )
+            else:
+                fan_mode = config.get(CONF_FAN_HIGH_HUMIDITY)
+                swing_mode = config.get(CONF_SWING_HIGH_HUMIDITY)
+                swing_horizontal_mode = config.get(CONF_SWING_HORIZONTAL_HIGH_HUMIDITY)
+                target_temp = config.get(CONF_TEMP_HIGH_HUMIDITY)
 
-            self._log_state_change(
-                "humidity_threshold",
-                {
-                    "humidity": humidity,
-                    "threshold": max_humidity,
-                    "action": "high",
-                    "action_taken": "set_climate_mode",
-                    "mode": mode,
-                    "fan_mode": fan_mode,
-                    "swing_mode": swing_mode,
-                    "target_temp": target_temp,
-                },
-            )
+                self._log_state_change(
+                    "humidity_threshold",
+                    {
+                        "humidity": humidity,
+                        "threshold": max_humidity,
+                        "action": "high",
+                        "action_taken": "set_climate_mode",
+                        "mode": mode,
+                        "fan_mode": fan_mode,
+                        "swing_mode": swing_mode,
+                        "target_temp": target_temp,
+                    },
+                )
 
-            await self._async_set_climate(
-                mode, fan_mode, swing_mode, swing_horizontal_mode, target_temp
-            )
+                await self._async_set_climate(
+                    mode, fan_mode, swing_mode, swing_horizontal_mode, target_temp
+                )
         else:
             # Humidity is within acceptable range - turn off humidifier
             if self.humidifier_entity:
