@@ -7,14 +7,9 @@
         "data": {
           "climate_entity": "Climate Entity",
           "use_external_temp_sensor": "Use External Temperature Sensor?",
-          "use_external_humidity_sensor": "Use External Humidity Sensor?",
-          "use_humidity": "Enable Humidity Control?",
           "enable_light_control": "Enable Light Control?",
-          "ac_humidity_controls": "Enable AC Humidity Controls (if supported)?",
           "use_external_temp_sensor_description": "Choose yes to read temperature from an external sensor instead of the climate entity.",
-          "use_humidity_description": "Enable humidity-based automation and optional humidifier control.",
-          "enable_light_control_description": "Toggle the AC display light before/after commands and when the automation turns on/off.",
-          "ac_humidity_controls_description": "If your AC supports humidity control (humidify/dehumidify), enable this to configure AC behavior for both high and low humidity. Otherwise, only the humidifier will be controlled for low humidity."
+          "enable_light_control_description": "Toggle the AC display light before/after commands and when the automation turns on/off."
         }
       },
       "sensors": {
@@ -23,10 +18,6 @@
         "data": {
           "temperature_sensor": "Temperature Sensor",
           "temperature_sensor_description": "Optional: select an external temperature sensor to use instead of the climate entity's built-in temperature.",
-          "humidity_sensor": "Humidity Sensor",
-          "humidity_sensor_description": "Optional: select an external humidity sensor to use instead of the climate entity's built-in humidity.",
-          "humidifier_entity": "Humidifier Entity (Optional)",
-          "humidifier_entity_description": "Optional: device that will be turned on to increase humidity (humidifier or switch). Leave blank if none.",
           "light_entity": "Light Entity (Required when light control is enabled)",
           "light_entity_description": "The entity that controls the display light or mode on your AC. Can be a light, switch, or select entity."
         }
@@ -57,14 +48,9 @@
         "data": {
           "climate_entity": "Climate Entity",
           "use_external_temp_sensor": "Use External Temperature Sensor?",
-          "use_external_humidity_sensor": "Use External Humidity Sensor?",
-          "use_humidity": "Enable Humidity Control?",
           "enable_light_control": "Enable Light Control?",
-          "ac_humidity_controls": "Enable AC Humidity Controls (if supported)?",
           "use_external_temp_sensor_description": "Choose yes to read temperature from an external sensor instead of the climate entity.",
-          "use_humidity_description": "Enable humidity-based automation and optional humidifier control.",
-          "enable_light_control_description": "Toggle the AC display light before/after commands and when the automation turns on/off.",
-          "ac_humidity_controls_description": "If your AC supports humidity control (humidify/dehumidify), enable this to configure AC behavior for both high and low humidity. Otherwise, only the humidifier will be controlled for low humidity."
+          "enable_light_control_description": "Toggle the AC display light before/after commands and when the automation turns on/off."
         }
       },
       "sensors": {
@@ -73,10 +59,6 @@
         "data": {
           "temperature_sensor": "Temperature Sensor",
           "temperature_sensor_description": "Optional: select an external temperature sensor to use instead of the climate entity's built-in temperature.",
-          "humidity_sensor": "Humidity Sensor",
-          "humidity_sensor_description": "Optional: select an external humidity sensor to use instead of the climate entity's built-in humidity.",
-          "humidifier_entity": "Humidifier Entity (Optional)",
-          "humidifier_entity_description": "Optional: device that will be turned on to increase humidity (humidifier or switch). Leave blank if none.",
           "light_entity": "Light Entity (Required when light control is enabled)",
           "light_entity_description": "The entity that controls the display light or mode on your AC. Can be a light, switch, or select entity."
         }
@@ -92,18 +74,6 @@
   },
   "entity": {
     "select": {
-      "mode_low_humidity": {
-        "name": "AC Mode (Low Humidity)"
-      },
-      "fan_low_humidity": {
-        "name": "Fan Mode (Low Humidity)"
-      },
-      "swing_low_humidity": {
-        "name": "Swing Mode (Low Humidity)"
-      },
-      "swing_horizontal_low_humidity": {
-        "name": "Horizontal Swing Mode (Low Humidity)"
-      }
     }
   }
 }

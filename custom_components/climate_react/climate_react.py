@@ -30,38 +30,27 @@ from .const import (
     CONF_DELAY_BETWEEN_COMMANDS,
     CONF_ENABLE_LIGHT_CONTROL,
     CONF_ENABLED,
-    CONF_FAN_HIGH_HUMIDITY,
     CONF_FAN_HIGH_TEMP,
     CONF_FAN_LOW_TEMP,
-    CONF_HUMIDIFIER_ENTITY,
-    CONF_HUMIDITY_SENSOR,
     CONF_LAST_MODE_CHANGE_TIME,
     CONF_LAST_SET_HVAC_MODE,
     CONF_LIGHT_BEHAVIOR,
     CONF_LIGHT_ENTITY,
-    CONF_MAX_HUMIDITY,
     CONF_MAX_TEMP,
-    CONF_MIN_HUMIDITY,
     CONF_MIN_RUN_TIME,
     CONF_MIN_TEMP,
-    CONF_MODE_HIGH_HUMIDITY,
     CONF_MODE_HIGH_TEMP,
     CONF_MODE_LOW_TEMP,
-    CONF_SWING_HIGH_HUMIDITY,
     CONF_SWING_HIGH_TEMP,
-    CONF_SWING_HORIZONTAL_HIGH_HUMIDITY,
     CONF_SWING_HORIZONTAL_HIGH_TEMP,
     CONF_SWING_HORIZONTAL_LOW_TEMP,
     CONF_SWING_LOW_TEMP,
-    CONF_TEMP_HIGH_HUMIDITY,
     CONF_TEMP_HIGH_TEMP,
     CONF_TEMP_LOW_TEMP,
     CONF_TEMPERATURE_SENSOR,
     CONF_TIMER_EXPIRY,
     CONF_TIMER_MINUTES,
-    CONF_USE_EXTERNAL_HUMIDITY_SENSOR,
     CONF_USE_EXTERNAL_TEMP_SENSOR,
-    CONF_USE_HUMIDITY,
     DEFAULT_DELAY_BETWEEN_COMMANDS,
     DEFAULT_ENABLE_LIGHT_CONTROL,
     DEFAULT_ENABLED,
@@ -87,9 +76,7 @@ class StateChangeDetails(TypedDict, total=False):
     threshold: float | None
     action: str | None
     mode: str | None
-    humidity: float | None
     action_taken: str | None
-    humidifier_entity: str | None
     old_mode: str | None
     new_mode: str | None
     operation: str | None
@@ -131,11 +118,9 @@ class ClimateReactController:
         self.hass = hass
         self.entry = entry
         self._unsub_temp: Callable[[], None] | None = None
-        self._unsub_humidity: Callable[[], None] | None = None
         self._unsub_climate: Callable[[], None] | None = None
         self._enabled = entry.data.get(CONF_ENABLED, DEFAULT_ENABLED)
         self._last_temp: float | None = None
-        self._last_humidity: float | None = None
         self._warned_horizontal_service_missing = False
         self._climate_min_temp: float | None = None
         self._climate_max_temp: float | None = None
@@ -174,9 +159,7 @@ class ClimateReactController:
 
         # Sensor change debouncing to prevent excessive evaluations
         self._debounce_temp_timer: asyncio.TimerHandle | None = None
-        self._debounce_humidity_timer: asyncio.TimerHandle | None = None
         self._pending_temperature: float | None = None
-        self._pending_humidity: float | None = None
 
         # Task throttling
         self._task_semaphore = asyncio.Semaphore(MAX_CONCURRENT_BACKGROUND_TASKS)
@@ -380,25 +363,6 @@ class ClimateReactController:
         return self.climate_entity
 
     @property
-    def humidity_sensor(self) -> str | None:
-        """Get the humidity sensor entity ID (or climate entity if using built-in)."""
-        use_humidity = self.entry.data.get(CONF_USE_HUMIDITY, False)
-        if not use_humidity:
-            return None
-
-        use_external = self.entry.data.get(CONF_USE_EXTERNAL_HUMIDITY_SENSOR, False)
-        if use_external:
-            sensor = self.entry.data.get(CONF_HUMIDITY_SENSOR)
-            if sensor:  # Only return external sensor if it's actually set
-                return sensor
-        return self.climate_entity
-
-    @property
-    def humidifier_entity(self) -> str | None:
-        """Get the humidifier entity ID."""
-        return self.entry.data.get(CONF_HUMIDIFIER_ENTITY)
-
-    @property
     def enabled(self) -> bool:
         """Check if Climate React is enabled."""
         return self._enabled
@@ -555,20 +519,6 @@ class ClimateReactController:
                         ">" if action == "high" else "<",
                         threshold,
                         details.get("mode", "unknown"),
-                    )
-                elif change_type == "humidity_threshold" and _LOGGER.isEnabledFor(
-                    logging.INFO
-                ):
-                    humidity = details.get("humidity")
-                    threshold = details.get("threshold")
-                    action = details.get("action")
-                    _LOGGER.info(
-                        "💧 Humidity threshold triggered for %s: %.1f%% %s %.1f%% -> %s",
-                        self.climate_entity,
-                        humidity,
-                        ">" if action == "high" else "<",
-                        threshold,
-                        details.get("action_taken", "unknown"),
                     )
                 elif change_type == "manual_override" and _LOGGER.isEnabledFor(
                     logging.WARNING
@@ -790,34 +740,11 @@ class ClimateReactController:
                 "This will prevent temperature-based automation from working."
             )
 
-        # 2. Check humidity thresholds
-        min_humidity = config.get(CONF_MIN_HUMIDITY)
-        max_humidity = config.get(CONF_MAX_HUMIDITY)
-        if (
-            min_humidity is not None
-            and max_humidity is not None
-            and min_humidity >= max_humidity
-        ):
-            issues_found.append(
-                f"⚠️  Humidity thresholds invalid: min_humidity ({min_humidity}%) >= max_humidity ({max_humidity}%). "
-                "This will prevent humidity-based automation from working."
-            )
-
-        # 3. Check entity existence
+        # 2. Check entity existence
         entities_to_check = [
             (CONF_CLIMATE_ENTITY, self.climate_entity, "Climate entity"),
             (CONF_TEMPERATURE_SENSOR, self.temperature_sensor, "Temperature sensor"),
         ]
-
-        if self.humidity_sensor:
-            entities_to_check.append(
-                (CONF_HUMIDITY_SENSOR, self.humidity_sensor, "Humidity sensor")
-            )
-
-        if self.humidifier_entity:
-            entities_to_check.append(
-                (CONF_HUMIDIFIER_ENTITY, self.humidifier_entity, "Humidifier entity")
-            )
 
         if self.light_entity:
             entities_to_check.append(
@@ -846,11 +773,6 @@ class ClimateReactController:
                     config.get(CONF_MODE_HIGH_TEMP),
                     "High temperature mode",
                 ),
-                (
-                    CONF_MODE_HIGH_HUMIDITY,
-                    config.get(CONF_MODE_HIGH_HUMIDITY),
-                    "High humidity mode",
-                ),
             ]
 
             for conf_key, mode, description in configured_modes:
@@ -873,11 +795,6 @@ class ClimateReactController:
                     config.get("fan_high_temp"),
                     "High temperature fan mode",
                 ),
-                (
-                    "fan_high_humidity",
-                    config.get("fan_high_humidity"),
-                    "High humidity fan mode",
-                ),
             ]
 
             for conf_key, fan_mode, description in configured_fan_modes:
@@ -899,11 +816,6 @@ class ClimateReactController:
                     "swing_high_temp",
                     config.get("swing_high_temp"),
                     "High temperature swing mode",
-                ),
-                (
-                    "swing_high_humidity",
-                    config.get("swing_high_humidity"),
-                    "High humidity swing mode",
                 ),
             ]
 
@@ -941,14 +853,6 @@ class ClimateReactController:
             self._async_temperature_changed,
         )
 
-        # Subscribe to humidity sensor if configured
-        if self.humidity_sensor:
-            self._unsub_humidity = async_track_state_change_event(
-                self.hass,
-                [self.humidity_sensor],
-                self._async_humidity_changed,
-            )
-
         # Subscribe to climate entity changes: manual override detection, threshold
         # sync, and state evaluation. A single listener replaces what was previously
         # two separate listeners on the same entity.
@@ -977,18 +881,15 @@ class ClimateReactController:
                 self._needs_timer_migration = False
 
         _LOGGER.info(
-            "Climate React controller initialized for %s (temp: %s, humidity: %s)",
+            "Climate React controller initialized for %s (temp: %s)",
             self.climate_entity,
             self.temperature_sensor,
-            self.humidity_sensor or "not configured",
         )
 
     async def async_shutdown(self) -> None:
         """Shut down the controller."""
         if self._unsub_temp:
             self._unsub_temp()
-        if self._unsub_humidity:
-            self._unsub_humidity()
         if self._unsub_climate:
             self._unsub_climate()
 
@@ -1045,9 +946,6 @@ class ClimateReactController:
         if self._debounce_temp_timer:
             self._debounce_temp_timer.cancel()
             self._debounce_temp_timer = None
-        if self._debounce_humidity_timer:
-            self._debounce_humidity_timer.cancel()
-            self._debounce_humidity_timer = None
 
         # Clear timer listeners to prevent memory leaks
         self._timer_listeners.clear()
@@ -1107,10 +1005,6 @@ class ClimateReactController:
                 new_options[CONF_MIN_TEMP] = data["min_temp"]
             if "max_temp" in data:
                 new_options[CONF_MAX_TEMP] = data["max_temp"]
-            if "min_humidity" in data:
-                new_options[CONF_MIN_HUMIDITY] = data["min_humidity"]
-            if "max_humidity" in data:
-                new_options[CONF_MAX_HUMIDITY] = data["max_humidity"]
 
             self.hass.config_entries.async_update_entry(self.entry, options=new_options)
             self._invalidate_config_cache()
@@ -1261,32 +1155,6 @@ class ClimateReactController:
             self._pending_temperature = None
             await self._async_handle_temperature_threshold(temperature)
 
-    async def _debounce_humidity_threshold(self, humidity: float) -> None:
-        """Debounce humidity threshold evaluation to prevent excessive processing."""
-        self._pending_humidity = humidity
-        # Cancel existing timer
-        if self._debounce_humidity_timer:
-            self._debug("Canceling existing humidity debounce timer")
-            self._debounce_humidity_timer.cancel()
-
-        # Schedule new evaluation after debounce delay
-        delay = 1.0
-        self._debug(
-            "Scheduling humidity debounce (%.1fs) with pending humidity %.2f",
-            delay,
-            humidity,
-        )
-        self._debounce_humidity_timer = self.hass.loop.call_later(
-            delay, lambda: self._create_tracked_task(self._process_pending_humidity())
-        )
-
-    async def _process_pending_humidity(self) -> None:
-        """Process pending humidity threshold evaluation."""
-        if self._pending_humidity is not None:
-            humidity = self._pending_humidity
-            self._pending_humidity = None
-            await self._async_handle_humidity_threshold(humidity)
-
     async def _async_climate_state_changed(
         self, event: Event[EventStateChangedData]
     ) -> None:
@@ -1340,53 +1208,12 @@ class ClimateReactController:
             await self._async_persist_mode_state()
             await self._async_apply_light_behavior(enabled=False)
 
-    async def _async_humidity_changed(
-        self, event: Event[EventStateChangedData]
-    ) -> None:
-        """Handle humidity sensor state change.
-
-        Always capture the reading for UI attributes; only run automation when enabled.
-        """
-
-        new_state: State | None = event.data.get("new_state")
-        if not new_state or new_state.state in (STATE_UNAVAILABLE, STATE_UNKNOWN):
-            return
-
-        try:
-            # If using climate entity, read from current_humidity attribute
-            use_external = self.entry.data.get(CONF_USE_EXTERNAL_HUMIDITY_SENSOR, False)
-            if not use_external and new_state.entity_id == self.climate_entity:
-                humidity = new_state.attributes.get("current_humidity")
-                if humidity is None:
-                    return
-            else:
-                humidity = float(new_state.state)
-
-            humidity = float(humidity)
-            # Always keep the last reading for UI/diagnostics (thread-safe)
-            # Lock protects _last_humidity to prevent race conditions when multiple
-            # humidity updates occur simultaneously from different event sources
-            async with self._state_lock:
-                self._last_humidity = humidity
-            _LOGGER.debug(
-                "Humidity changed to %.1f%% for %s", humidity, self.climate_entity
-            )
-
-            # Debounce threshold evaluation to prevent excessive processing
-            if self._enabled:
-                await self._debounce_humidity_threshold(humidity)
-        except (ValueError, TypeError) as err:
-            _LOGGER.warning("Invalid humidity state: %s (%s)", new_state.state, err)
-
     async def _async_evaluate_state(self) -> None:
         """Evaluate current sensor states."""
         # Collect data under lock to get consistent snapshot of sensor states
         # and enabled flag, preventing race conditions during evaluation
         async with self._state_lock:
             temp_state = self.hass.states.get(self.temperature_sensor)
-            humidity_state = self.humidity_sensor and self.hass.states.get(
-                self.humidity_sensor
-            )
             enabled = self._enabled
 
         # Process temperature (outside lock)
@@ -1415,39 +1242,6 @@ class ClimateReactController:
                 if enabled:
                     self._create_tracked_task(
                         self._async_handle_temperature_threshold(temperature)
-                    )
-            except (ValueError, TypeError):
-                pass
-
-        # Process humidity (outside lock)
-        if humidity_state and humidity_state.state not in (
-            STATE_UNAVAILABLE,
-            STATE_UNKNOWN,
-        ):
-            try:
-                use_external_humidity = self.entry.data.get(
-                    CONF_USE_EXTERNAL_HUMIDITY_SENSOR, False
-                )
-                if (
-                    not use_external_humidity
-                    and humidity_state.entity_id == self.climate_entity
-                ):
-                    humidity = humidity_state.attributes.get("current_humidity")
-                    if humidity is not None:
-                        humidity = float(humidity)
-                else:
-                    humidity = float(humidity_state.state)
-
-                # Update state under lock
-                # Lock protects _last_humidity update to ensure thread-safe access
-                # and prevent data corruption from concurrent humidity updates
-                async with self._state_lock:
-                    self._last_humidity = humidity
-
-                # Schedule task outside lock
-                if enabled:
-                    self._create_tracked_task(
-                        self._async_handle_humidity_threshold(humidity)
                     )
             except (ValueError, TypeError):
                 pass
@@ -1567,157 +1361,6 @@ class ClimateReactController:
                 temperature,
                 min_temp,
                 max_temp,
-                self.climate_entity,
-            )
-            # Close the threshold lock
-
-    async def _async_handle_humidity_threshold(self, humidity: float) -> None:
-        """Handle humidity threshold logic."""
-        # Lock protects threshold evaluation to ensure consistent state
-        # and prevent race conditions when mode change timing is checked
-        async with self._state_lock:
-            if not self._can_change_mode():
-                self._log_state_change(
-                    "humidity_threshold_blocked",
-                    {
-                        "humidity": humidity,
-                        "reason": "minimum_run_time_not_elapsed",
-                        "last_change": str(self._last_mode_change_time),
-                    },
-                )
-                if _LOGGER.isEnabledFor(logging.DEBUG):
-                    _LOGGER.debug(
-                        "Humidity threshold triggered but minimum run time not elapsed for %s",
-                        self.climate_entity,
-                    )
-                return
-
-        config = self.config
-        min_humidity = config.get(CONF_MIN_HUMIDITY)
-        max_humidity = config.get(CONF_MAX_HUMIDITY)
-
-        # Check if humidity is too low (turn on humidifier)
-        if min_humidity and humidity < min_humidity:
-            if self.humidifier_entity:
-                self._log_state_change(
-                    "humidity_threshold",
-                    {
-                        "humidity": humidity,
-                        "threshold": min_humidity,
-                        "action": "low",
-                        "action_taken": "turn_on_humidifier",
-                        "humidifier_entity": self.humidifier_entity,
-                    },
-                )
-
-                logbook.async_log_entry(
-                    self.hass,
-                    "Low Humidity",
-                    message=f"Humidity {humidity:.1f}% below minimum {min_humidity:.1f}% - turning on humidifier",
-                    entity_id=self._get_switch_entity_id(),
-                    domain=DOMAIN,
-                )
-                # Determine the correct domain based on entity_id
-                domain = self.humidifier_entity.split(".")[0]
-                service = "turn_on"
-                success = await self._async_safe_service_call(
-                    domain, service, {"entity_id": self.humidifier_entity}
-                )
-                if not success:
-                    _LOGGER.warning(
-                        "Failed to turn on humidifier %s", self.humidifier_entity
-                    )
-            else:
-                _LOGGER.debug(
-                    "Humidity %.1f%% < %.1f%% (min) but no humidifier configured",
-                    humidity,
-                    min_humidity,
-                )
-        # Check if humidity is too high (turn off humidifier and/or trigger dehumidify mode)
-        elif max_humidity and humidity > max_humidity:
-            # Turn off humidifier if it's on
-            if self.humidifier_entity:
-                self._log_state_change(
-                    "humidity_threshold",
-                    {
-                        "humidity": humidity,
-                        "threshold": max_humidity,
-                        "action": "high",
-                        "action_taken": "turn_off_humidifier",
-                        "humidifier_entity": self.humidifier_entity,
-                    },
-                )
-
-                logbook.async_log_entry(
-                    self.hass,
-                    "High Humidity",
-                    message=f"Humidity {humidity:.1f}% above maximum {max_humidity:.1f}% - turned off humidifier",
-                    entity_id=self._get_switch_entity_id(),
-                    domain=DOMAIN,
-                )
-                # Determine the correct domain based on entity_id
-                domain = self.humidifier_entity.split(".")[0]
-                service = "turn_off"
-                success = await self._async_safe_service_call(
-                    domain, service, {"entity_id": self.humidifier_entity}
-                )
-                if not success:
-                    _LOGGER.warning(
-                        "Failed to turn off humidifier %s", self.humidifier_entity
-                    )
-
-            # Trigger dehumidify mode on climate entity
-            mode = config.get(CONF_MODE_HIGH_HUMIDITY)
-            if mode == MODE_NONE:
-                _LOGGER.debug(
-                    "High humidity threshold crossed for %s but mode is 'none', skipping climate command",
-                    self.climate_entity,
-                )
-            else:
-                fan_mode = config.get(CONF_FAN_HIGH_HUMIDITY)
-                swing_mode = config.get(CONF_SWING_HIGH_HUMIDITY)
-                swing_horizontal_mode = config.get(CONF_SWING_HORIZONTAL_HIGH_HUMIDITY)
-                target_temp = config.get(CONF_TEMP_HIGH_HUMIDITY)
-
-                self._log_state_change(
-                    "humidity_threshold",
-                    {
-                        "humidity": humidity,
-                        "threshold": max_humidity,
-                        "action": "high",
-                        "action_taken": "set_climate_mode",
-                        "mode": mode,
-                        "fan_mode": fan_mode,
-                        "swing_mode": swing_mode,
-                        "target_temp": target_temp,
-                    },
-                )
-
-                await self._async_set_climate(
-                    mode, fan_mode, swing_mode, swing_horizontal_mode, target_temp
-                )
-        else:
-            # Humidity is within acceptable range - turn off humidifier
-            if self.humidifier_entity:
-                _LOGGER.debug(
-                    "Humidity %.1f%% within range [%.1f, %.1f] - turning off humidifier %s",
-                    humidity,
-                    min_humidity or 0,
-                    max_humidity or 100,
-                    self.humidifier_entity,
-                )
-                domain = self.humidifier_entity.split(".")[0]
-                service = "turn_off"
-                success = await self._async_safe_service_call(
-                    domain, service, {"entity_id": self.humidifier_entity}
-                )
-                if not success:
-                    _LOGGER.warning(
-                        "Failed to turn off humidifier %s", self.humidifier_entity
-                    )
-            _LOGGER.debug(
-                "Humidity %.1f%% within acceptable range for %s",
-                humidity,
                 self.climate_entity,
             )
             # Close the threshold lock

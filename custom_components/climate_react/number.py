@@ -7,24 +7,19 @@ from typing import Callable
 
 from homeassistant.components.number import NumberEntity, NumberMode
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import PERCENTAGE, UnitOfTemperature
+from homeassistant.const import UnitOfTemperature
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .climate_react import ClimateReactController
 from .const import (
     CONF_DELAY_BETWEEN_COMMANDS,
-    CONF_HUMIDIFIER_ENTITY,
-    CONF_MAX_HUMIDITY,
     CONF_MAX_TEMP,
-    CONF_MIN_HUMIDITY,
     CONF_MIN_RUN_TIME,
     CONF_MIN_TEMP,
-    CONF_TEMP_HIGH_HUMIDITY,
     CONF_TEMP_HIGH_TEMP,
     CONF_TEMP_LOW_TEMP,
     CONF_TIMER_MINUTES,
-    CONF_USE_HUMIDITY,
     DATA_COORDINATOR,
     DEFAULT_DELAY_BETWEEN_COMMANDS,
     DEFAULT_MIN_RUN_TIME,
@@ -53,18 +48,6 @@ async def async_setup_entry(
         ClimateReactMinRunTimeNumber(controller, entry),
         ClimateReactTimerNumber(controller, entry),
     ]
-
-    if entry.data.get(CONF_USE_HUMIDITY, False):
-        # Min humidity only shown if humidifier is configured
-        if entry.data.get(CONF_HUMIDIFIER_ENTITY):
-            numbers.append(ClimateReactMinHumidityNumber(controller, entry))
-
-        numbers.extend(
-            [
-                ClimateReactMaxHumidityNumber(controller, entry),
-                ClimateReactTempHighHumidityNumber(controller, entry),
-            ]
-        )
 
     async_add_entities(numbers, True)
 
@@ -137,46 +120,6 @@ class ClimateReactMaxTempNumber(ClimateReactBaseNumber):
         self._attr_native_value = config.get(CONF_MAX_TEMP, 26.0)
 
 
-class ClimateReactMinHumidityNumber(ClimateReactBaseNumber):
-    """Number entity for minimum humidity threshold."""
-
-    _attr_name = "Minimum Humidity"
-    _attr_icon = "mdi:water-percent"
-    _attr_native_unit_of_measurement = PERCENTAGE
-    _attr_native_min_value = 0
-    _attr_native_max_value = 100
-    _attr_native_step = 1
-    _config_key = CONF_MIN_HUMIDITY
-
-    def __init__(self, controller: ClimateReactController, entry: ConfigEntry) -> None:
-        """Initialize the min humidity number."""
-        super().__init__(controller, entry)
-        suffix = controller._entity_suffix()
-        self._attr_unique_id = f"climate_react_{suffix}_min_humidity"
-        config = {**entry.data, **entry.options}
-        self._attr_native_value = config.get(CONF_MIN_HUMIDITY, 30.0)
-
-
-class ClimateReactMaxHumidityNumber(ClimateReactBaseNumber):
-    """Number entity for maximum humidity threshold."""
-
-    _attr_name = "Maximum Humidity"
-    _attr_icon = "mdi:water-percent-alert"
-    _attr_native_unit_of_measurement = PERCENTAGE
-    _attr_native_min_value = 0
-    _attr_native_max_value = 100
-    _attr_native_step = 1
-    _config_key = CONF_MAX_HUMIDITY
-
-    def __init__(self, controller: ClimateReactController, entry: ConfigEntry) -> None:
-        """Initialize the max humidity number."""
-        super().__init__(controller, entry)
-        suffix = controller._entity_suffix()
-        self._attr_unique_id = f"climate_react_{suffix}_max_humidity"
-        config = {**entry.data, **entry.options}
-        self._attr_native_value = config.get(CONF_MAX_HUMIDITY, 60.0)
-
-
 class ClimateReactTempLowTempNumber(ClimateReactBaseNumber):
     """Number entity for target temperature at low threshold."""
 
@@ -215,26 +158,6 @@ class ClimateReactTempHighTempNumber(ClimateReactBaseNumber):
         self._attr_unique_id = f"climate_react_{suffix}_temp_high_temp"
         config = {**entry.data, **entry.options}
         self._attr_native_value = config.get(CONF_TEMP_HIGH_TEMP, 30.0)
-
-
-class ClimateReactTempHighHumidityNumber(ClimateReactBaseNumber):
-    """Number entity for target temperature at high humidity."""
-
-    _attr_name = "Target Temperature High Humidity"
-    _attr_icon = "mdi:thermometer"
-    _attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
-    _attr_native_min_value = 0
-    _attr_native_max_value = 40
-    _attr_native_step = 0.5
-    _config_key = CONF_TEMP_HIGH_HUMIDITY
-
-    def __init__(self, controller: ClimateReactController, entry: ConfigEntry) -> None:
-        """Initialize the target temp humidity number."""
-        super().__init__(controller, entry)
-        suffix = controller._entity_suffix()
-        self._attr_unique_id = f"climate_react_{suffix}_temp_high_humidity"
-        config = {**entry.data, **entry.options}
-        self._attr_native_value = config.get(CONF_TEMP_HIGH_HUMIDITY, 24.0)
 
 
 class ClimateReactDelayBetweenCommandsNumber(ClimateReactBaseNumber):

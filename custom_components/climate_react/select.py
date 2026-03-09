@@ -14,20 +14,15 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .climate_react import ClimateReactController
 from .const import (
-    CONF_FAN_HIGH_HUMIDITY,
     CONF_FAN_HIGH_TEMP,
     CONF_FAN_LOW_TEMP,
     CONF_LIGHT_BEHAVIOR,
-    CONF_MODE_HIGH_HUMIDITY,
     CONF_MODE_HIGH_TEMP,
     CONF_MODE_LOW_TEMP,
-    CONF_SWING_HIGH_HUMIDITY,
     CONF_SWING_HIGH_TEMP,
-    CONF_SWING_HORIZONTAL_HIGH_HUMIDITY,
     CONF_SWING_HORIZONTAL_HIGH_TEMP,
     CONF_SWING_HORIZONTAL_LOW_TEMP,
     CONF_SWING_LOW_TEMP,
-    CONF_USE_HUMIDITY,
     DATA_COORDINATOR,
     DOMAIN,
     LIGHT_BEHAVIOR_OFF,
@@ -92,34 +87,6 @@ async def async_setup_entry(
                 ]
             )
 
-        # --- HYBRID HUMIDITY LOGIC ---
-        # Create AC-mode humidity selects whenever humidity control AND ac_humidity_controls
-        # are both enabled. We intentionally do NOT require the climate to expose
-        # target_humidity / humidity_modes — a regular AC using 'dry' hvac_mode is
-        # sufficient; the select options are already filtered by hvac_modes anyway.
-        ac_humidity_controls = entry.data.get("ac_humidity_controls", False)
-        if entry.data.get(CONF_USE_HUMIDITY, False) and ac_humidity_controls:
-            if _supports("hvac_modes"):
-                selects.append(ClimateReactModeHighHumiditySelect(controller, entry))
-            if _supports("fan_modes"):
-                selects.append(ClimateReactFanHighHumiditySelect(controller, entry))
-            if _supports("swing_modes"):
-                selects.append(ClimateReactSwingHighHumiditySelect(controller, entry))
-            if _supports("swing_horizontal_modes"):
-                selects.append(
-                    ClimateReactSwingHorizontalHighHumiditySelect(controller, entry)
-                )
-            # Low humidity (humidification via AC mode)
-            if _supports("hvac_modes"):
-                selects.append(ClimateReactModeLowHumiditySelect(controller, entry))
-            if _supports("fan_modes"):
-                selects.append(ClimateReactFanLowHumiditySelect(controller, entry))
-            if _supports("swing_modes"):
-                selects.append(ClimateReactSwingLowHumiditySelect(controller, entry))
-            if _supports("swing_horizontal_modes"):
-                selects.append(
-                    ClimateReactSwingHorizontalLowHumiditySelect(controller, entry)
-                )
         return selects
 
     # Get initial climate state
@@ -145,22 +112,6 @@ async def async_setup_entry(
         # Add light entity if available
         if controller.light_entity:
             entities.append(ClimateReactLightBehaviorSelect(controller, entry))
-        # Add humidity entities if enabled
-        if entry.data.get(CONF_USE_HUMIDITY, False) and entry.data.get(
-            "ac_humidity_controls", False
-        ):
-            entities.extend(
-                [
-                    ClimateReactModeHighHumiditySelect(controller, entry),
-                    ClimateReactFanHighHumiditySelect(controller, entry),
-                    ClimateReactSwingHighHumiditySelect(controller, entry),
-                    ClimateReactSwingHorizontalHighHumiditySelect(controller, entry),
-                    ClimateReactModeLowHumiditySelect(controller, entry),
-                    ClimateReactFanLowHumiditySelect(controller, entry),
-                    ClimateReactSwingLowHumiditySelect(controller, entry),
-                    ClimateReactSwingHorizontalLowHumiditySelect(controller, entry),
-                ]
-            )
         _LOGGER.info(
             "Climate entity %s unavailable at setup, created %d select entities (will become available when climate loads)",
             controller.climate_entity,
@@ -356,25 +307,6 @@ class ClimateReactModeHighTempSelect(ClimateReactBaseSelect):
         self._attr_current_option = config.get(CONF_MODE_HIGH_TEMP, "cool")
 
 
-class ClimateReactModeHighHumiditySelect(ClimateReactBaseSelect):
-    """Select entity for HVAC mode when humidity is high."""
-
-    _attr_name = "Mode High Humidity"
-    _attr_icon = "mdi:thermostat"
-    _config_key = CONF_MODE_HIGH_HUMIDITY
-    _climate_attr = "hvac_modes"
-    _allowed_options = ["dry", "fan_only", "off"]
-    _static_extra_options = [MODE_NONE]
-
-    def __init__(self, controller: ClimateReactController, entry: ConfigEntry) -> None:
-        """Initialize the select."""
-        super().__init__(controller, entry)
-        suffix = controller._entity_suffix()
-        self._attr_unique_id = f"climate_react_{suffix}_mode_high_humidity"
-        config = {**entry.data, **entry.options}
-        self._attr_current_option = config.get(CONF_MODE_HIGH_HUMIDITY, "dry")
-
-
 # Fan Mode Selects
 
 
@@ -410,23 +342,6 @@ class ClimateReactFanHighTempSelect(ClimateReactBaseSelect):
         self._attr_unique_id = f"climate_react_{suffix}_fan_high_temp"
         config = {**entry.data, **entry.options}
         self._attr_current_option = config.get(CONF_FAN_HIGH_TEMP, "auto")
-
-
-class ClimateReactFanHighHumiditySelect(ClimateReactBaseSelect):
-    """Select entity for fan mode when humidity is high."""
-
-    _attr_name = "Fan High Humidity"
-    _attr_icon = "mdi:fan"
-    _config_key = CONF_FAN_HIGH_HUMIDITY
-    _climate_attr = "fan_modes"
-
-    def __init__(self, controller: ClimateReactController, entry: ConfigEntry) -> None:
-        """Initialize the select."""
-        super().__init__(controller, entry)
-        suffix = controller._entity_suffix()
-        self._attr_unique_id = f"climate_react_{suffix}_fan_high_humidity"
-        config = {**entry.data, **entry.options}
-        self._attr_current_option = config.get(CONF_FAN_HIGH_HUMIDITY, "auto")
 
 
 # Swing Mode Selects
@@ -466,23 +381,6 @@ class ClimateReactSwingHighTempSelect(ClimateReactBaseSelect):
         self._attr_current_option = config.get(CONF_SWING_HIGH_TEMP, "off")
 
 
-class ClimateReactSwingHighHumiditySelect(ClimateReactBaseSelect):
-    """Select entity for swing mode when humidity is high."""
-
-    _attr_name = "Swing High Humidity"
-    _attr_icon = "mdi:arrow-oscillating"
-    _config_key = CONF_SWING_HIGH_HUMIDITY
-    _climate_attr = "swing_modes"
-
-    def __init__(self, controller: ClimateReactController, entry: ConfigEntry) -> None:
-        """Initialize the select."""
-        super().__init__(controller, entry)
-        suffix = controller._entity_suffix()
-        self._attr_unique_id = f"climate_react_{suffix}_swing_high_humidity"
-        config = {**entry.data, **entry.options}
-        self._attr_current_option = config.get(CONF_SWING_HIGH_HUMIDITY, "off")
-
-
 class ClimateReactSwingHorizontalLowTempSelect(ClimateReactBaseSelect):
     """Select entity for horizontal swing mode when temperature is low."""
 
@@ -515,23 +413,6 @@ class ClimateReactSwingHorizontalHighTempSelect(ClimateReactBaseSelect):
         self._attr_unique_id = f"climate_react_{suffix}_swing_horizontal_high_temp"
         config = {**entry.data, **entry.options}
         self._attr_current_option = config.get(CONF_SWING_HORIZONTAL_HIGH_TEMP)
-
-
-class ClimateReactSwingHorizontalHighHumiditySelect(ClimateReactBaseSelect):
-    """Select entity for horizontal swing mode when humidity is high."""
-
-    _attr_name = "Swing Horizontal High Humidity"
-    _attr_icon = "mdi:arrow-left-right"
-    _config_key = CONF_SWING_HORIZONTAL_HIGH_HUMIDITY
-    _climate_attr = "swing_horizontal_modes"
-
-    def __init__(self, controller: ClimateReactController, entry: ConfigEntry) -> None:
-        """Initialize the select."""
-        super().__init__(controller, entry)
-        suffix = controller._entity_suffix()
-        self._attr_unique_id = f"climate_react_{suffix}_swing_horizontal_high_humidity"
-        config = {**entry.data, **entry.options}
-        self._attr_current_option = config.get(CONF_SWING_HORIZONTAL_HIGH_HUMIDITY)
 
 
 class ClimateReactLightBehaviorSelect(ClimateReactBaseSelect):
@@ -571,84 +452,3 @@ class ClimateReactLightBehaviorSelect(ClimateReactBaseSelect):
     @property
     def available(self) -> bool:  # type: ignore[override]
         return self._controller.light_entity is not None
-
-
-class ClimateReactModeLowHumiditySelect(ClimateReactBaseSelect):
-    """Select for AC mode when humidity is below min threshold (humidification)."""
-
-    _attr_translation_key = "mode_low_humidity"
-    _allowed_options = ["auto", "dry", "off", "heat", "cool", "fan_only"]
-    _static_extra_options = [MODE_NONE]
-
-    def __init__(self, controller: ClimateReactController, entry: ConfigEntry) -> None:
-        """Initialize the select."""
-        super().__init__(controller, entry)
-        suffix = controller._entity_suffix()
-        self._attr_unique_id = f"climate_react_{suffix}_mode_low_humidity"
-
-    def _refresh_options(self, state) -> None:
-        options = []
-        if state and "hvac_modes" in state.attributes:
-            options = [
-                opt
-                for opt in state.attributes["hvac_modes"]
-                if opt in self._allowed_options
-            ]
-        for extra in self._static_extra_options:
-            if extra not in options:
-                options.append(extra)
-        self._attr_options = options
-
-
-class ClimateReactFanLowHumiditySelect(ClimateReactBaseSelect):
-    """Select for AC fan mode when humidity is below min threshold (humidification)."""
-
-    _attr_translation_key = "fan_low_humidity"
-
-    def __init__(self, controller: ClimateReactController, entry: ConfigEntry) -> None:
-        """Initialize the select."""
-        super().__init__(controller, entry)
-        suffix = controller._entity_suffix()
-        self._attr_unique_id = f"climate_react_{suffix}_fan_low_humidity"
-
-    def _refresh_options(self, state) -> None:
-        options = []
-        if state and "fan_modes" in state.attributes:
-            options = list(state.attributes["fan_modes"])
-        self._attr_options = options
-
-
-class ClimateReactSwingLowHumiditySelect(ClimateReactBaseSelect):
-    """Select for AC swing mode when humidity is below min threshold (humidification)."""
-
-    _attr_translation_key = "swing_low_humidity"
-
-    def __init__(self, controller: ClimateReactController, entry: ConfigEntry) -> None:
-        """Initialize the select."""
-        super().__init__(controller, entry)
-        suffix = controller._entity_suffix()
-        self._attr_unique_id = f"climate_react_{suffix}_swing_low_humidity"
-
-    def _refresh_options(self, state) -> None:
-        options = []
-        if state and "swing_modes" in state.attributes:
-            options = list(state.attributes["swing_modes"])
-        self._attr_options = options
-
-
-class ClimateReactSwingHorizontalLowHumiditySelect(ClimateReactBaseSelect):
-    """Select for AC horizontal swing mode when humidity is below min threshold (humidification)."""
-
-    _attr_translation_key = "swing_horizontal_low_humidity"
-
-    def __init__(self, controller: ClimateReactController, entry: ConfigEntry) -> None:
-        """Initialize the select."""
-        super().__init__(controller, entry)
-        suffix = controller._entity_suffix()
-        self._attr_unique_id = f"climate_react_{suffix}_swing_horizontal_low_humidity"
-
-    def _refresh_options(self, state) -> None:
-        options = []
-        if state and "swing_horizontal_modes" in state.attributes:
-            options = list(state.attributes["swing_horizontal_modes"])
-        self._attr_options = options

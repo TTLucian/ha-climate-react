@@ -11,64 +11,45 @@ from homeassistant.core import callback
 from homeassistant.helpers import selector
 
 from .const import (
-    CONF_AC_HUMIDITY_CONTROLS,
     CONF_CLIMATE_ENTITY,
     CONF_DELAY_BETWEEN_COMMANDS,
     CONF_ENABLE_LIGHT_CONTROL,
     CONF_ENABLED,
-    CONF_FAN_HIGH_HUMIDITY,
     CONF_FAN_HIGH_TEMP,
     CONF_FAN_LOW_TEMP,
-    CONF_HUMIDIFIER_ENTITY,
-    CONF_HUMIDITY_SENSOR,
     CONF_LIGHT_ENTITY,
     CONF_LIGHT_SELECT_OFF_OPTION,
     CONF_LIGHT_SELECT_ON_OPTION,
-    CONF_MAX_HUMIDITY,
     CONF_MAX_TEMP,
-    CONF_MIN_HUMIDITY,
     CONF_MIN_RUN_TIME,
     CONF_MIN_TEMP,
-    CONF_MODE_HIGH_HUMIDITY,
     CONF_MODE_HIGH_TEMP,
     CONF_MODE_LOW_TEMP,
-    CONF_SWING_HIGH_HUMIDITY,
     CONF_SWING_HIGH_TEMP,
-    CONF_SWING_HORIZONTAL_HIGH_HUMIDITY,
     CONF_SWING_HORIZONTAL_HIGH_TEMP,
     CONF_SWING_HORIZONTAL_LOW_TEMP,
     CONF_SWING_LOW_TEMP,
-    CONF_TEMP_HIGH_HUMIDITY,
     CONF_TEMP_HIGH_TEMP,
     CONF_TEMP_LOW_TEMP,
     CONF_TEMPERATURE_SENSOR,
     CONF_TIMER_MINUTES,
-    CONF_USE_EXTERNAL_HUMIDITY_SENSOR,
     CONF_USE_EXTERNAL_TEMP_SENSOR,
-    CONF_USE_HUMIDITY,
-    DEFAULT_AC_HUMIDITY_CONTROLS,
     DEFAULT_DELAY_BETWEEN_COMMANDS,
     DEFAULT_ENABLE_LIGHT_CONTROL,
     DEFAULT_ENABLED,
     DEFAULT_FAN_MODE,
     DEFAULT_LIGHT_SELECT_OFF_OPTION,
     DEFAULT_LIGHT_SELECT_ON_OPTION,
-    DEFAULT_MAX_HUMIDITY,
     DEFAULT_MAX_TEMP,
-    DEFAULT_MIN_HUMIDITY,
     DEFAULT_MIN_RUN_TIME,
     DEFAULT_MIN_TEMP,
-    DEFAULT_MODE_HIGH_HUMIDITY,
     DEFAULT_MODE_HIGH_TEMP,
     DEFAULT_MODE_LOW_TEMP,
     DEFAULT_SWING_MODE,
-    DEFAULT_TEMP_HIGH_HUMIDITY,
     DEFAULT_TEMP_HIGH_TEMP,
     DEFAULT_TEMP_LOW_TEMP,
     DEFAULT_TIMER_MINUTES,
-    DEFAULT_USE_EXTERNAL_HUMIDITY_SENSOR,
     DEFAULT_USE_EXTERNAL_TEMP_SENSOR,
-    DEFAULT_USE_HUMIDITY,
     DOMAIN,
 )
 
@@ -86,17 +67,12 @@ class UserStepData(_UserStepDataRequired, total=False):
 
     enable_light_control: bool
     use_external_temp_sensor: bool
-    use_humidity: bool
-    use_external_humidity_sensor: bool
-    ac_humidity_controls: bool
 
 
 class SensorStepData(TypedDict, total=False):
     """Type-safe data structure for sensor step configuration."""
 
     temperature_sensor: str | None
-    humidity_sensor: str | None
-    humidifier_entity: str | None
     light_entity: str | None
 
 
@@ -188,24 +164,17 @@ class ClimateReactConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             **base_data,
             CONF_MIN_TEMP: DEFAULT_MIN_TEMP,
             CONF_MAX_TEMP: DEFAULT_MAX_TEMP,
-            CONF_MIN_HUMIDITY: DEFAULT_MIN_HUMIDITY,
-            CONF_MAX_HUMIDITY: DEFAULT_MAX_HUMIDITY,
             CONF_MIN_RUN_TIME: DEFAULT_MIN_RUN_TIME,
             CONF_MODE_LOW_TEMP: DEFAULT_MODE_LOW_TEMP,
             CONF_MODE_HIGH_TEMP: DEFAULT_MODE_HIGH_TEMP,
-            CONF_MODE_HIGH_HUMIDITY: DEFAULT_MODE_HIGH_HUMIDITY,
             CONF_FAN_LOW_TEMP: DEFAULT_FAN_MODE,
             CONF_FAN_HIGH_TEMP: DEFAULT_FAN_MODE,
-            CONF_FAN_HIGH_HUMIDITY: DEFAULT_FAN_MODE,
             CONF_SWING_LOW_TEMP: DEFAULT_SWING_MODE,
             CONF_SWING_HIGH_TEMP: DEFAULT_SWING_MODE,
-            CONF_SWING_HIGH_HUMIDITY: DEFAULT_SWING_MODE,
             CONF_SWING_HORIZONTAL_LOW_TEMP: DEFAULT_SWING_MODE,
             CONF_SWING_HORIZONTAL_HIGH_TEMP: DEFAULT_SWING_MODE,
-            CONF_SWING_HORIZONTAL_HIGH_HUMIDITY: DEFAULT_SWING_MODE,
             CONF_TEMP_LOW_TEMP: DEFAULT_TEMP_LOW_TEMP,
             CONF_TEMP_HIGH_TEMP: DEFAULT_TEMP_HIGH_TEMP,
-            CONF_TEMP_HIGH_HUMIDITY: DEFAULT_TEMP_HIGH_HUMIDITY,
             CONF_DELAY_BETWEEN_COMMANDS: DEFAULT_DELAY_BETWEEN_COMMANDS,
             CONF_TIMER_MINUTES: DEFAULT_TIMER_MINUTES,
             CONF_ENABLED: DEFAULT_ENABLED,
@@ -238,25 +207,13 @@ class ClimateReactConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     use_external_temp_sensor=user_input.get(
                         CONF_USE_EXTERNAL_TEMP_SENSOR, DEFAULT_USE_EXTERNAL_TEMP_SENSOR
                     ),
-                    use_humidity=user_input.get(
-                        CONF_USE_HUMIDITY, DEFAULT_USE_HUMIDITY
-                    ),
-                    use_external_humidity_sensor=user_input.get(
-                        CONF_USE_EXTERNAL_HUMIDITY_SENSOR,
-                        DEFAULT_USE_EXTERNAL_HUMIDITY_SENSOR,
-                    ),
-                    ac_humidity_controls=user_input.get(
-                        CONF_AC_HUMIDITY_CONTROLS, DEFAULT_AC_HUMIDITY_CONTROLS
-                    ),
                 )
 
                 # Check if any optional features are enabled
                 assert self._step1_data is not None  # Set above
                 if not (
                     self._step1_data.get("use_external_temp_sensor", False)
-                    or self._step1_data.get("use_humidity", False)
-                    or self._step1_data.get("use_external_humidity_sensor", False)
-                    or self._step1_data.get("ac_humidity_controls", False)
+                    or self._step1_data.get("enable_light_control", False)
                 ):
                     return await self._async_create_entry_with_defaults(
                         self._step1_data
@@ -279,21 +236,6 @@ class ClimateReactConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 default=DEFAULT_USE_EXTERNAL_TEMP_SENSOR,
                 description={"suggested_value": DEFAULT_USE_EXTERNAL_TEMP_SENSOR},
             ): selector.BooleanSelector(),
-            vol.Optional(
-                CONF_USE_HUMIDITY,
-                default=DEFAULT_USE_HUMIDITY,
-                description={"suggested_value": DEFAULT_USE_HUMIDITY},
-            ): selector.BooleanSelector(),
-            vol.Optional(
-                CONF_USE_EXTERNAL_HUMIDITY_SENSOR,
-                default=DEFAULT_USE_EXTERNAL_HUMIDITY_SENSOR,
-                description={"suggested_value": DEFAULT_USE_EXTERNAL_HUMIDITY_SENSOR},
-            ): selector.BooleanSelector(),
-            vol.Optional(
-                CONF_AC_HUMIDITY_CONTROLS,
-                default=DEFAULT_AC_HUMIDITY_CONTROLS,
-                description={"suggested_value": DEFAULT_AC_HUMIDITY_CONTROLS},
-            ): selector.BooleanSelector(),
         }
 
         data_schema = vol.Schema(schema_dict)
@@ -311,10 +253,6 @@ class ClimateReactConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         use_external_temp = self._step1_data.get(
             CONF_USE_EXTERNAL_TEMP_SENSOR, DEFAULT_USE_EXTERNAL_TEMP_SENSOR
         )
-        use_humidity = self._step1_data.get(CONF_USE_HUMIDITY, DEFAULT_USE_HUMIDITY)
-        use_external_humidity = self._step1_data.get(
-            CONF_USE_EXTERNAL_HUMIDITY_SENSOR, DEFAULT_USE_EXTERNAL_HUMIDITY_SENSOR
-        )
         light_control = self._step1_data.get(
             CONF_ENABLE_LIGHT_CONTROL, DEFAULT_ENABLE_LIGHT_CONTROL
         )
@@ -326,18 +264,6 @@ class ClimateReactConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     errors[CONF_TEMPERATURE_SENSOR] = "entity_required"
                 elif not self.hass.states.get(temp_sensor):
                     errors[CONF_TEMPERATURE_SENSOR] = "entity_not_found"
-
-            if use_humidity and use_external_humidity:
-                humidity_sensor = user_input.get(CONF_HUMIDITY_SENSOR)
-                if not humidity_sensor:
-                    errors[CONF_HUMIDITY_SENSOR] = "entity_required"
-                elif not self.hass.states.get(humidity_sensor):
-                    errors[CONF_HUMIDITY_SENSOR] = "entity_not_found"
-
-            if use_humidity:
-                humidifier = user_input.get(CONF_HUMIDIFIER_ENTITY)
-                if humidifier and not self.hass.states.get(humidifier):
-                    errors[CONF_HUMIDIFIER_ENTITY] = "entity_not_found"
 
             # Validate light entity depending on whether light control was enabled
             light_entity = user_input.get(CONF_LIGHT_ENTITY)
@@ -372,12 +298,6 @@ class ClimateReactConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         temperature_sensor=self._extract_optional_entity(
                             user_input, CONF_TEMPERATURE_SENSOR
                         ),
-                        humidity_sensor=self._extract_optional_entity(
-                            user_input, CONF_HUMIDITY_SENSOR
-                        ),
-                        humidifier_entity=self._extract_optional_entity(
-                            user_input, CONF_HUMIDIFIER_ENTITY
-                        ),
                         light_entity=self._extract_optional_entity(
                             user_input, CONF_LIGHT_ENTITY
                         ),
@@ -396,12 +316,6 @@ class ClimateReactConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     {
                         CONF_TEMPERATURE_SENSOR: self._extract_optional_entity(
                             user_input, CONF_TEMPERATURE_SENSOR
-                        ),
-                        CONF_HUMIDITY_SENSOR: self._extract_optional_entity(
-                            user_input, CONF_HUMIDITY_SENSOR
-                        ),
-                        CONF_HUMIDIFIER_ENTITY: self._extract_optional_entity(
-                            user_input, CONF_HUMIDIFIER_ENTITY
                         ),
                         CONF_LIGHT_ENTITY: self._extract_optional_entity(
                             user_input, CONF_LIGHT_ENTITY
@@ -449,16 +363,6 @@ class ClimateReactConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 )
             )
 
-        if use_humidity and use_external_humidity:
-            schema_dict[vol.Required(CONF_HUMIDITY_SENSOR)] = selector.EntitySelector(
-                selector.EntitySelectorConfig(domain="sensor", device_class="humidity")
-            )
-
-        if use_humidity:
-            schema_dict[vol.Optional(CONF_HUMIDIFIER_ENTITY)] = selector.EntitySelector(
-                selector.EntitySelectorConfig(domain=["humidifier", "switch"])
-            )
-
         # Light entity is optional; validate when provided.
         schema_dict[vol.Optional(CONF_LIGHT_ENTITY)] = selector.EntitySelector(
             selector.EntitySelectorConfig(domain=["light", "switch", "select"])
@@ -488,34 +392,21 @@ class ClimateReactConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 data[CONF_TEMPERATURE_SENSOR] = (
                     self._step2_data.get(CONF_TEMPERATURE_SENSOR) or None
                 )
-                data[CONF_HUMIDITY_SENSOR] = (
-                    self._step2_data.get(CONF_HUMIDITY_SENSOR) or None
-                )
-                data[CONF_HUMIDIFIER_ENTITY] = (
-                    self._step2_data.get(CONF_HUMIDIFIER_ENTITY) or None
-                )
 
                 # Prepare defaults
                 data[CONF_MIN_TEMP] = DEFAULT_MIN_TEMP
                 data[CONF_MAX_TEMP] = DEFAULT_MAX_TEMP
-                data[CONF_MIN_HUMIDITY] = DEFAULT_MIN_HUMIDITY
-                data[CONF_MAX_HUMIDITY] = DEFAULT_MAX_HUMIDITY
                 data[CONF_MIN_RUN_TIME] = DEFAULT_MIN_RUN_TIME
                 data[CONF_MODE_LOW_TEMP] = DEFAULT_MODE_LOW_TEMP
                 data[CONF_MODE_HIGH_TEMP] = DEFAULT_MODE_HIGH_TEMP
-                data[CONF_MODE_HIGH_HUMIDITY] = DEFAULT_MODE_HIGH_HUMIDITY
                 data[CONF_FAN_LOW_TEMP] = DEFAULT_FAN_MODE
                 data[CONF_FAN_HIGH_TEMP] = DEFAULT_FAN_MODE
-                data[CONF_FAN_HIGH_HUMIDITY] = DEFAULT_FAN_MODE
                 data[CONF_SWING_LOW_TEMP] = DEFAULT_SWING_MODE
                 data[CONF_SWING_HIGH_TEMP] = DEFAULT_SWING_MODE
-                data[CONF_SWING_HIGH_HUMIDITY] = DEFAULT_SWING_MODE
                 data[CONF_SWING_HORIZONTAL_LOW_TEMP] = DEFAULT_SWING_MODE
                 data[CONF_SWING_HORIZONTAL_HIGH_TEMP] = DEFAULT_SWING_MODE
-                data[CONF_SWING_HORIZONTAL_HIGH_HUMIDITY] = DEFAULT_SWING_MODE
                 data[CONF_TEMP_LOW_TEMP] = DEFAULT_TEMP_LOW_TEMP
                 data[CONF_TEMP_HIGH_TEMP] = DEFAULT_TEMP_HIGH_TEMP
-                data[CONF_TEMP_HIGH_HUMIDITY] = DEFAULT_TEMP_HIGH_HUMIDITY
                 data[CONF_DELAY_BETWEEN_COMMANDS] = DEFAULT_DELAY_BETWEEN_COMMANDS
                 data[CONF_TIMER_MINUTES] = DEFAULT_TIMER_MINUTES
                 data[CONF_ENABLED] = DEFAULT_ENABLED
@@ -583,8 +474,6 @@ class ClimateReactConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         data.update(
             {
                 CONF_TEMPERATURE_SENSOR: None,
-                CONF_HUMIDITY_SENSOR: None,
-                CONF_HUMIDIFIER_ENTITY: None,
                 CONF_LIGHT_ENTITY: None,
                 CONF_ENABLE_LIGHT_CONTROL: step1_data.get(
                     "enable_light_control", DEFAULT_ENABLE_LIGHT_CONTROL
@@ -666,41 +555,6 @@ class ClimateReactOptionsFlow(config_entries.OptionsFlow):
                 },
             ): selector.BooleanSelector(),
             vol.Optional(
-                CONF_USE_HUMIDITY,
-                default=self.config_entry.data.get(
-                    CONF_USE_HUMIDITY, DEFAULT_USE_HUMIDITY
-                ),
-                description={
-                    "suggested_value": self.config_entry.data.get(
-                        CONF_USE_HUMIDITY, DEFAULT_USE_HUMIDITY
-                    )
-                },
-            ): selector.BooleanSelector(),
-            vol.Optional(
-                CONF_USE_EXTERNAL_HUMIDITY_SENSOR,
-                default=self.config_entry.data.get(
-                    CONF_USE_EXTERNAL_HUMIDITY_SENSOR,
-                    DEFAULT_USE_EXTERNAL_HUMIDITY_SENSOR,
-                ),
-                description={
-                    "suggested_value": self.config_entry.data.get(
-                        CONF_USE_EXTERNAL_HUMIDITY_SENSOR,
-                        DEFAULT_USE_EXTERNAL_HUMIDITY_SENSOR,
-                    )
-                },
-            ): selector.BooleanSelector(),
-            vol.Optional(
-                CONF_AC_HUMIDITY_CONTROLS,
-                default=self.config_entry.data.get(
-                    CONF_AC_HUMIDITY_CONTROLS, DEFAULT_AC_HUMIDITY_CONTROLS
-                ),
-                description={
-                    "suggested_value": self.config_entry.data.get(
-                        CONF_AC_HUMIDITY_CONTROLS, DEFAULT_AC_HUMIDITY_CONTROLS
-                    )
-                },
-            ): selector.BooleanSelector(),
-            vol.Optional(
                 CONF_ENABLE_LIGHT_CONTROL,
                 default=self.config_entry.data.get(
                     CONF_ENABLE_LIGHT_CONTROL, DEFAULT_ENABLE_LIGHT_CONTROL
@@ -728,10 +582,6 @@ class ClimateReactOptionsFlow(config_entries.OptionsFlow):
         use_external_temp = self._step1_data.get(
             CONF_USE_EXTERNAL_TEMP_SENSOR, DEFAULT_USE_EXTERNAL_TEMP_SENSOR
         )
-        use_humidity = self._step1_data.get(CONF_USE_HUMIDITY, DEFAULT_USE_HUMIDITY)
-        use_external_humidity = self._step1_data.get(
-            CONF_USE_EXTERNAL_HUMIDITY_SENSOR, DEFAULT_USE_EXTERNAL_HUMIDITY_SENSOR
-        )
         light_control = self._step1_data.get(
             CONF_ENABLE_LIGHT_CONTROL, DEFAULT_ENABLE_LIGHT_CONTROL
         )
@@ -743,18 +593,6 @@ class ClimateReactOptionsFlow(config_entries.OptionsFlow):
                     errors[CONF_TEMPERATURE_SENSOR] = "entity_required"
                 elif not self.hass.states.get(temp_sensor):
                     errors[CONF_TEMPERATURE_SENSOR] = "entity_not_found"
-
-            if use_humidity and use_external_humidity:
-                humidity_sensor = user_input.get(CONF_HUMIDITY_SENSOR)
-                if not humidity_sensor:
-                    errors[CONF_HUMIDITY_SENSOR] = "entity_required"
-                elif not self.hass.states.get(humidity_sensor):
-                    errors[CONF_HUMIDITY_SENSOR] = "entity_not_found"
-
-            if use_humidity:
-                humidifier = user_input.get(CONF_HUMIDIFIER_ENTITY)
-                if humidifier and not self.hass.states.get(humidifier):
-                    errors[CONF_HUMIDIFIER_ENTITY] = "entity_not_found"
 
             if light_control:
                 light_entity = user_input.get(CONF_LIGHT_ENTITY)
@@ -773,12 +611,6 @@ class ClimateReactOptionsFlow(config_entries.OptionsFlow):
                 data = {**self.config_entry.data, **self._step1_data}
                 data[CONF_TEMPERATURE_SENSOR] = (
                     user_input.get(CONF_TEMPERATURE_SENSOR) or None
-                )
-                data[CONF_HUMIDITY_SENSOR] = (
-                    user_input.get(CONF_HUMIDITY_SENSOR) or None
-                )
-                data[CONF_HUMIDIFIER_ENTITY] = (
-                    user_input.get(CONF_HUMIDIFIER_ENTITY) or None
                 )
                 data[CONF_LIGHT_ENTITY] = user_input.get(CONF_LIGHT_ENTITY) or None
                 data[CONF_LIGHT_SELECT_ON_OPTION] = user_input.get(
@@ -813,40 +645,6 @@ class ClimateReactOptionsFlow(config_entries.OptionsFlow):
                         selector.EntitySelectorConfig(
                             domain="sensor", device_class="temperature"
                         )
-                    )
-                )
-
-        if use_humidity and use_external_humidity:
-            current_humidity = self.config_entry.data.get(CONF_HUMIDITY_SENSOR)
-            if current_humidity:
-                schema_dict[
-                    vol.Required(CONF_HUMIDITY_SENSOR, default=current_humidity)
-                ] = selector.EntitySelector(
-                    selector.EntitySelectorConfig(
-                        domain="sensor", device_class="humidity"
-                    )
-                )
-            else:
-                schema_dict[vol.Required(CONF_HUMIDITY_SENSOR)] = (
-                    selector.EntitySelector(
-                        selector.EntitySelectorConfig(
-                            domain="sensor", device_class="humidity"
-                        )
-                    )
-                )
-
-        if use_humidity:
-            current_humidifier = self.config_entry.data.get(CONF_HUMIDIFIER_ENTITY)
-            if current_humidifier:
-                schema_dict[
-                    vol.Optional(CONF_HUMIDIFIER_ENTITY, default=current_humidifier)
-                ] = selector.EntitySelector(
-                    selector.EntitySelectorConfig(domain=["humidifier", "switch"])
-                )
-            else:
-                schema_dict[vol.Optional(CONF_HUMIDIFIER_ENTITY)] = (
-                    selector.EntitySelector(
-                        selector.EntitySelectorConfig(domain=["humidifier", "switch"])
                     )
                 )
 

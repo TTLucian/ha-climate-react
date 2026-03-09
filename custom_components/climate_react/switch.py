@@ -87,9 +87,7 @@ class ClimateReactSwitch(SwitchEntity):
     def extra_state_attributes(self) -> dict[str, Any]:  # type: ignore[override]
         """Return extra state attributes."""
         from .const import (
-            CONF_MAX_HUMIDITY,
             CONF_MAX_TEMP,
-            CONF_MIN_HUMIDITY,
             CONF_MIN_TEMP,
         )
 
@@ -104,17 +102,5 @@ class ClimateReactSwitch(SwitchEntity):
         # Add current temperature if available
         if self._controller._last_temp is not None:
             attrs["current_temperature"] = round(self._controller._last_temp, 1)
-
-        if self._controller.humidity_sensor:
-            attrs["humidity_sensor"] = self._controller.humidity_sensor
-            attrs["min_humidity"] = config.get(CONF_MIN_HUMIDITY)
-            attrs["max_humidity"] = config.get(CONF_MAX_HUMIDITY)
-
-        # Add current humidity if available
-        if (
-            self._controller.humidity_sensor
-            and self._controller._last_humidity is not None
-        ):
-            attrs["current_humidity"] = round(self._controller._last_humidity, 1)
 
         return attrs
