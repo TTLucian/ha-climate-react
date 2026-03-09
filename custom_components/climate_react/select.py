@@ -93,42 +93,33 @@ async def async_setup_entry(
             )
 
         # --- HYBRID HUMIDITY LOGIC ---
+        # Create AC-mode humidity selects whenever humidity control AND ac_humidity_controls
+        # are both enabled. We intentionally do NOT require the climate to expose
+        # target_humidity / humidity_modes — a regular AC using 'dry' hvac_mode is
+        # sufficient; the select options are already filtered by hvac_modes anyway.
         ac_humidity_controls = entry.data.get("ac_humidity_controls", False)
-        if entry.data.get(CONF_USE_HUMIDITY, False):
-            # Detect if climate supports humidity control
-            supports_humidity = "target_humidity" in state.attributes or _supports(
-                "humidity_modes"
-            )
-            if supports_humidity and ac_humidity_controls:
-                # AC supports humidity: create selects for both high and low humidity
-                if _supports("hvac_modes"):
-                    selects.append(
-                        ClimateReactModeHighHumiditySelect(controller, entry)
-                    )
-                if _supports("fan_modes"):
-                    selects.append(ClimateReactFanHighHumiditySelect(controller, entry))
-                if _supports("swing_modes"):
-                    selects.append(
-                        ClimateReactSwingHighHumiditySelect(controller, entry)
-                    )
-                if _supports("swing_horizontal_modes"):
-                    selects.append(
-                        ClimateReactSwingHorizontalHighHumiditySelect(controller, entry)
-                    )
-                # For low humidity (humidification)
-                if _supports("hvac_modes"):
-                    selects.append(ClimateReactModeLowHumiditySelect(controller, entry))
-                if _supports("fan_modes"):
-                    selects.append(ClimateReactFanLowHumiditySelect(controller, entry))
-                if _supports("swing_modes"):
-                    selects.append(
-                        ClimateReactSwingLowHumiditySelect(controller, entry)
-                    )
-                if _supports("swing_horizontal_modes"):
-                    selects.append(
-                        ClimateReactSwingHorizontalLowHumiditySelect(controller, entry)
-                    )
-            # else: No AC humidity support or not enabled: only create humidifier control (if implemented)
+        if entry.data.get(CONF_USE_HUMIDITY, False) and ac_humidity_controls:
+            if _supports("hvac_modes"):
+                selects.append(ClimateReactModeHighHumiditySelect(controller, entry))
+            if _supports("fan_modes"):
+                selects.append(ClimateReactFanHighHumiditySelect(controller, entry))
+            if _supports("swing_modes"):
+                selects.append(ClimateReactSwingHighHumiditySelect(controller, entry))
+            if _supports("swing_horizontal_modes"):
+                selects.append(
+                    ClimateReactSwingHorizontalHighHumiditySelect(controller, entry)
+                )
+            # Low humidity (humidification via AC mode)
+            if _supports("hvac_modes"):
+                selects.append(ClimateReactModeLowHumiditySelect(controller, entry))
+            if _supports("fan_modes"):
+                selects.append(ClimateReactFanLowHumiditySelect(controller, entry))
+            if _supports("swing_modes"):
+                selects.append(ClimateReactSwingLowHumiditySelect(controller, entry))
+            if _supports("swing_horizontal_modes"):
+                selects.append(
+                    ClimateReactSwingHorizontalLowHumiditySelect(controller, entry)
+                )
         return selects
 
     # Get initial climate state
@@ -155,13 +146,19 @@ async def async_setup_entry(
         if controller.light_entity:
             entities.append(ClimateReactLightBehaviorSelect(controller, entry))
         # Add humidity entities if enabled
-        if entry.data.get(CONF_USE_HUMIDITY, False):
+        if entry.data.get(CONF_USE_HUMIDITY, False) and entry.data.get(
+            "ac_humidity_controls", False
+        ):
             entities.extend(
                 [
                     ClimateReactModeHighHumiditySelect(controller, entry),
                     ClimateReactFanHighHumiditySelect(controller, entry),
                     ClimateReactSwingHighHumiditySelect(controller, entry),
                     ClimateReactSwingHorizontalHighHumiditySelect(controller, entry),
+                    ClimateReactModeLowHumiditySelect(controller, entry),
+                    ClimateReactFanLowHumiditySelect(controller, entry),
+                    ClimateReactSwingLowHumiditySelect(controller, entry),
+                    ClimateReactSwingHorizontalLowHumiditySelect(controller, entry),
                 ]
             )
         _LOGGER.info(
@@ -217,9 +214,9 @@ class ClimateReactBaseSelect(SelectEntity):
 
     _attr_has_entity_name = True
     _allowed_options: list[str] | None = None  # Optional filter for allowed options
-    _static_extra_options: list[
-        str
-    ] = []  # Always-available options (not from climate attributes)
+    _static_extra_options: list[str] = (
+        []
+    )  # Always-available options (not from climate attributes)
     _attr_options: list[str] = []  # Initialize with empty list
     _climate_attr: str | None = None
     _config_key: str
