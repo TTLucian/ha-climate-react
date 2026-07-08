@@ -8,7 +8,6 @@
 </p>
 
 <p align="center">
-  <a href="https://buymeacoffee.com/ttlucian" rel="noopener" target="_blank">
   <a href="https://ko-fi.com/ttlucian"><img src="https://img.shields.io/badge/Ko--fi-Donate-ff5f5f?style=for-the-badge&logo=ko-fi&logoColor=white" alt="Ko-fi" /></a>
   </a>
 </p>
