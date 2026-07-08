@@ -9,7 +9,7 @@
 
 <p align="center">
   <a href="https://buymeacoffee.com/ttlucian" rel="noopener" target="_blank">
-    <img src="https://img.shields.io/badge/Buy%20Me%20a%20Coffee-Donate-yellow?style=for-the-badge" alt="Buy Me a Coffee" />
+  <a href="https://ko-fi.com/ttlucian"><img src="https://img.shields.io/badge/Ko--fi-Donate-ff5f5f?style=for-the-badge&logo=ko-fi&logoColor=white" alt="Ko-fi" /></a>
   </a>
 </p>
 
@@ -33,7 +33,7 @@ A Home Assistant custom integration that automatically controls your HVAC system
 - **Multi-AC Support**: Run independent instances for multiple climate entities
 
 ---
- [!["Buy Me A Coffee"](https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png)](https://www.buymeacoffee.com/TTLucian)
+[<img src="https://storage.ko-fi.com/cdn/kofi5.png?v=3" height="36" alt="Ko-fi">](https://ko-fi.com/ttlucian)
  
 ---
 
