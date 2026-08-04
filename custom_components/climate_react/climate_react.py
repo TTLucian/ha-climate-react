@@ -235,6 +235,10 @@ class ClimateReactController:
         # Always wrap coroutine into a Task so shutdown can cancel/await consistently
         try:
             task = self.hass.loop.create_task(coro)
+        except Exception as exc:
+            _LOGGER.exception("Failed to create tracked task: %s", exc)
+            return
+        try:
             self._task_queue.put_nowait(task)
             # Track peak queue size for observability
             try:
@@ -244,9 +248,11 @@ class ClimateReactController:
             except Exception:
                 pass
         except asyncio.QueueFull:
+            # Task was already started — cancel it so it doesn't run untracked
+            task.cancel()
             self._dropped_task_count += 1
             _LOGGER.warning(
-                "Task queue full; dropping tracked task to prevent memory growth"
+                "Task queue full; cancelling untracked task to prevent memory growth"
             )
         except Exception as exc:
             _LOGGER.exception("Failed to create/enqueue tracked task: %s", exc)
@@ -808,13 +814,13 @@ class ClimateReactController:
             supported_swing_modes = climate_state.attributes.get("swing_modes", [])
             configured_swing_modes = [
                 (
-                    "swing_low_temp",
-                    config.get("swing_low_temp"),
+                    CONF_SWING_LOW_TEMP,
+                    config.get(CONF_SWING_LOW_TEMP),
                     "Low temperature swing mode",
                 ),
                 (
-                    "swing_high_temp",
-                    config.get("swing_high_temp"),
+                    CONF_SWING_HIGH_TEMP,
+                    config.get(CONF_SWING_HIGH_TEMP),
                     "High temperature swing mode",
                 ),
             ]
@@ -912,26 +918,28 @@ class ClimateReactController:
         self._shutting_down = True
         self._processor_stop_event.set()
 
-        # Drain task queue to release Task references and cancel them
+        # Drain task queue, cancel each task, then await all to suppress warnings
+        cancelled_tasks: list[asyncio.Task] = []
         try:
             while True:
                 task = self._task_queue.get_nowait()
                 if isinstance(task, asyncio.Task):
                     try:
                         task.cancel()
+                        cancelled_tasks.append(task)
                     except RuntimeError as exc:
-                        # Cancellation failed due to runtime issues; log explicitly
                         _LOGGER.exception(
                             "RuntimeError cancelling queued task during shutdown: %s",
                             exc,
                         )
                     except Exception as exc:
-                        # Defensive catch for other unexpected issues during shutdown
                         _LOGGER.exception(
                             "Failed to cancel queued task during shutdown: %s", exc
                         )
         except asyncio.QueueEmpty:
             pass
+        if cancelled_tasks:
+            await asyncio.gather(*cancelled_tasks, return_exceptions=True)
 
         # Cancel and await the processor to ensure it exits cleanly
         if self._task_processor_task and not self._task_processor_task.done():
@@ -979,7 +987,7 @@ class ClimateReactController:
                     "Failed to turn off climate entity %s on disable",
                     self.climate_entity,
                 )
-        if self.timer_minutes > 0 and self._is_climate_off():
+        if self.timer_minutes > 0:
             await self.async_set_timer(0)
         await self._async_apply_light_behavior(enabled=False)
         _LOGGER.info("Climate React disabled for %s", self.climate_entity)
@@ -1243,7 +1251,7 @@ class ClimateReactController:
                     self._create_tracked_task(
                         self._async_handle_temperature_threshold(temperature)
                     )
-            except (ValueError, TypeError):
+            except ValueError, TypeError:
                 pass
 
     async def _async_handle_temperature_threshold(self, temperature: float) -> None:
@@ -1363,7 +1371,6 @@ class ClimateReactController:
                 max_temp,
                 self.climate_entity,
             )
-            # Close the threshold lock
 
     async def _async_set_climate(
         self,
