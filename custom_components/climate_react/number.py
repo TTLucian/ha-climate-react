@@ -86,7 +86,7 @@ class ClimateReactMinTempNumber(ClimateReactBaseNumber):
     _attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
     _attr_native_min_value = 0
     _attr_native_max_value = 40
-    _attr_native_step = 0.5
+    _attr_native_step = 0.1
     _config_key = CONF_MIN_TEMP
 
     def __init__(self, controller: ClimateReactController, entry: ConfigEntry) -> None:
@@ -106,7 +106,7 @@ class ClimateReactMaxTempNumber(ClimateReactBaseNumber):
     _attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
     _attr_native_min_value = 0
     _attr_native_max_value = 40
-    _attr_native_step = 0.5
+    _attr_native_step = 0.1
     _config_key = CONF_MAX_TEMP
 
     def __init__(self, controller: ClimateReactController, entry: ConfigEntry) -> None:
