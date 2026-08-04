@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Callable
+from collections.abc import Callable
 
 from homeassistant.components.number import NumberEntity, NumberMode
 from homeassistant.config_entries import ConfigEntry
@@ -35,9 +35,7 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up Climate React number entities from a config entry."""
-    controller: ClimateReactController = hass.data[DOMAIN][entry.entry_id][
-        DATA_COORDINATOR
-    ]
+    controller: ClimateReactController = hass.data[DOMAIN][entry.entry_id][DATA_COORDINATOR]
 
     numbers = [
         ClimateReactMinTempNumber(controller, entry),
@@ -177,9 +175,7 @@ class ClimateReactDelayBetweenCommandsNumber(ClimateReactBaseNumber):
         suffix = controller._entity_suffix()
         self._attr_unique_id = f"climate_react_{suffix}_delay_between_commands"
         config = {**entry.data, **entry.options}
-        self._attr_native_value = config.get(
-            CONF_DELAY_BETWEEN_COMMANDS, DEFAULT_DELAY_BETWEEN_COMMANDS
-        )
+        self._attr_native_value = config.get(CONF_DELAY_BETWEEN_COMMANDS, DEFAULT_DELAY_BETWEEN_COMMANDS)
 
 
 class ClimateReactMinRunTimeNumber(ClimateReactBaseNumber):
@@ -224,9 +220,7 @@ class ClimateReactTimerNumber(ClimateReactBaseNumber):
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
-        self._remove_listener = self._controller.add_timer_listener(
-            self._on_timer_updated
-        )
+        self._remove_listener = self._controller.add_timer_listener(self._on_timer_updated)
 
     async def async_will_remove_from_hass(self) -> None:
         if self._remove_listener:
@@ -244,4 +238,4 @@ class ClimateReactTimerNumber(ClimateReactBaseNumber):
 
     async def async_set_native_value(self, value: float) -> None:
         """Set timer minutes and propagate to controller."""
-        await self._controller.async_set_timer(int(round(value)))
+        await self._controller.async_set_timer(round(value))

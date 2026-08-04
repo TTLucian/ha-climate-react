@@ -7,8 +7,9 @@ import logging
 import re
 import time
 from collections import deque
-from datetime import datetime, timedelta
-from typing import Any, Callable, Optional, TypedDict
+from collections.abc import Callable
+from datetime import UTC, datetime, timedelta
+from typing import Any, TypedDict
 
 from homeassistant.components import logbook
 from homeassistant.config_entries import ConfigEntry
@@ -131,7 +132,7 @@ class ClimateReactController:
         self._needs_timer_migration: bool = False
         # Initialize timer expiry timestamp (migrate from old minutes format if needed)
         config_data = {**entry.data, **entry.options}
-        self._timer_expiry: Optional[float] = None
+        self._timer_expiry: float | None = None
 
         # Add locks for thread safety (consolidated for better performance)
         # Lock hierarchy (acquire in this order only to prevent deadlocks):
@@ -153,9 +154,7 @@ class ClimateReactController:
         self._capability_validation_time: dict[str, float] = {}
 
         # Enhanced state change tracking for debugging
-        self._state_change_log: deque[dict[str, Any]] = deque(
-            maxlen=MAX_STATE_LOG_ENTRIES
-        )
+        self._state_change_log: deque[dict[str, Any]] = deque(maxlen=MAX_STATE_LOG_ENTRIES)
 
         # Sensor change debouncing to prevent excessive evaluations
         self._debounce_temp_timer: asyncio.TimerHandle | None = None
@@ -198,9 +197,7 @@ class ClimateReactController:
             try:
                 self._last_mode_change_time = datetime.fromisoformat(last_change_str)
             except ValueError:
-                _LOGGER.warning(
-                    "Invalid last mode change time format: %s", last_change_str
-                )
+                _LOGGER.warning("Invalid last mode change time format: %s", last_change_str)
                 self._last_mode_change_time = None
 
         self._last_set_hvac_mode = config_data.get(CONF_LAST_SET_HVAC_MODE)
@@ -216,8 +213,7 @@ class ClimateReactController:
         """
         try:
             _LOGGER.debug("%s: " + msg, self.climate_entity, *args, **kwargs)
-        except Exception:
-            # Fall back to standard debug call if formatting fails
+        except Exception:  # noqa: BLE001
             _LOGGER.debug(msg, *args, **kwargs)
 
     def _create_tracked_task(self, coro) -> None:
@@ -235,27 +231,24 @@ class ClimateReactController:
         # Always wrap coroutine into a Task so shutdown can cancel/await consistently
         try:
             task = self.hass.loop.create_task(coro)
-        except Exception as exc:
-            _LOGGER.exception("Failed to create tracked task: %s", exc)
+        except Exception:
+            _LOGGER.exception("Failed to create tracked task")
             return
         try:
             self._task_queue.put_nowait(task)
             # Track peak queue size for observability
             try:
                 qsize = self._task_queue.qsize()
-                if qsize > self._queue_peak:
-                    self._queue_peak = qsize
-            except Exception:
+                self._queue_peak = max(self._queue_peak, qsize)
+            except Exception:  # noqa: BLE001, S110
                 pass
         except asyncio.QueueFull:
             # Task was already started — cancel it so it doesn't run untracked
             task.cancel()
             self._dropped_task_count += 1
-            _LOGGER.warning(
-                "Task queue full; cancelling untracked task to prevent memory growth"
-            )
-        except Exception as exc:
-            _LOGGER.exception("Failed to create/enqueue tracked task: %s", exc)
+            _LOGGER.warning("Task queue full; cancelling untracked task to prevent memory growth")
+        except Exception:
+            _LOGGER.exception("Failed to create/enqueue tracked task")
 
     def _create_timer_task(self, coro) -> asyncio.Task:
         """Create a timer task that is managed separately from pending tasks."""
@@ -282,10 +275,8 @@ class ClimateReactController:
                 break
             try:
                 try:
-                    task: asyncio.Task = await asyncio.wait_for(
-                        self._task_queue.get(), timeout=1.0
-                    )
-                except asyncio.TimeoutError:
+                    task: asyncio.Task = await asyncio.wait_for(self._task_queue.get(), timeout=1.0)
+                except TimeoutError:
                     continue
 
                 # Ensure we have a Task; if not, wrap defensively
@@ -298,18 +289,15 @@ class ClimateReactController:
                     except asyncio.CancelledError:
                         # Task cancelled during shutdown or by caller
                         self._debug("Background task was cancelled")
-                    except Exception as e:
-                        _LOGGER.exception("Task processing error: %s", e)
+                    except Exception:
+                        _LOGGER.exception("Task processing error")
             except asyncio.CancelledError:
-                # The processor was explicitly cancelled; exit gracefully
                 self._debug("Task processor cancelled")
                 break
-            except RuntimeError as e:
-                # Runtime errors often indicate loop/state issues; log and continue
-                _LOGGER.exception("Runtime error in task processor: %s", e)
-            except Exception as e:
-                # Catch-all for truly unexpected errors but keep explicit logging
-                _LOGGER.exception("Unexpected error in task processor: %s", e)
+            except RuntimeError:
+                _LOGGER.exception("Runtime error in task processor")
+            except Exception:
+                _LOGGER.exception("Unexpected error in task processor")
 
     @property
     def _min_run_time_minutes(self) -> int:
@@ -333,9 +321,7 @@ class ClimateReactController:
         state = self.hass.states.get(entity_id)
         return state is not None
 
-    def register_state_listener(
-        self, entity_ids: list[str], callback: Callable
-    ) -> Callable[[], None]:
+    def register_state_listener(self, entity_ids: list[str], callback: Callable) -> Callable[[], None]:
         """Register a state-change listener and return an unsubscribe callable.
 
         This centralizes the use of `async_track_state_change_event` so entity
@@ -376,9 +362,7 @@ class ClimateReactController:
     @property
     def light_entity(self) -> str | None:
         """Light/select entity used for light control."""
-        enabled = self.config.get(
-            CONF_ENABLE_LIGHT_CONTROL, DEFAULT_ENABLE_LIGHT_CONTROL
-        )
+        enabled = self.config.get(CONF_ENABLE_LIGHT_CONTROL, DEFAULT_ENABLE_LIGHT_CONTROL)
         if not enabled:
             # Light control explicitly disabled in config; treat as if no light configured
             return None
@@ -449,9 +433,7 @@ class ClimateReactController:
     def add_timer_listener(self, callback: Callable[[], None]) -> Callable[[], None]:
         """Register a callback to be notified on timer updates."""
         self._timer_listeners.append(callback)
-        self._debug(
-            "Added timer listener (total listeners: %d)", len(self._timer_listeners)
-        )
+        self._debug("Added timer listener (total listeners: %d)", len(self._timer_listeners))
 
         def _remove() -> None:
             if callback in self._timer_listeners:
@@ -491,7 +473,7 @@ class ClimateReactController:
         if last_change is None:
             return True
 
-        elapsed = datetime.now() - last_change
+        elapsed = datetime.now() - last_change  # noqa: DTZ005
         return elapsed >= timedelta(minutes=self._min_run_time_minutes)
 
     def _log_state_change(self, change_type: str, details: StateChangeDetails) -> None:
@@ -512,9 +494,7 @@ class ClimateReactController:
                 self._state_change_log.append(entry)
 
                 # Enhanced logging based on change type (only when info/debug enabled)
-                if change_type == "temperature_threshold" and _LOGGER.isEnabledFor(
-                    logging.INFO
-                ):
+                if change_type == "temperature_threshold" and _LOGGER.isEnabledFor(logging.INFO):
                     temp = details.get("temperature")
                     threshold = details.get("threshold")
                     action = details.get("action")
@@ -526,18 +506,14 @@ class ClimateReactController:
                         threshold,
                         details.get("mode", "unknown"),
                     )
-                elif change_type == "manual_override" and _LOGGER.isEnabledFor(
-                    logging.WARNING
-                ):
+                elif change_type == "manual_override" and _LOGGER.isEnabledFor(logging.WARNING):
                     _LOGGER.warning(
                         "👤 Manual override detected for %s: mode changed from %s to %s",
                         self.climate_entity,
                         details.get("old_mode"),
                         details.get("new_mode"),
                     )
-                elif change_type == "climate_command" and _LOGGER.isEnabledFor(
-                    logging.INFO
-                ):
+                elif change_type == "climate_command" and _LOGGER.isEnabledFor(logging.INFO):
                     _LOGGER.info(
                         "🏠 Climate command sent to %s: mode=%s, fan=%s, swing=%s, temp=%s",
                         self.climate_entity,
@@ -567,15 +543,11 @@ class ClimateReactController:
 
             # Reset if timeout expired
             if service_key in self._service_call_last_failure:
-                time_since_failure = (
-                    current_time - self._service_call_last_failure[service_key]
-                )
+                time_since_failure = current_time - self._service_call_last_failure[service_key]
                 if time_since_failure > self._circuit_breaker_timeout:
                     self._service_call_failures[service_key] = 0
                     del self._service_call_last_failure[service_key]
-                    self._debug(
-                        "Circuit breaker reset for %s after timeout", service_key
-                    )
+                    self._debug("Circuit breaker reset for %s after timeout", service_key)
                     return False
 
             failure_count = self._service_call_failures.get(service_key, 0)
@@ -609,18 +581,14 @@ class ClimateReactController:
                         del self._service_call_last_failure[service_key]
                 else:
                     # Increment failure count
-                    self._service_call_failures[service_key] = (
-                        self._service_call_failures.get(service_key, 0) + 1
-                    )
+                    self._service_call_failures[service_key] = self._service_call_failures.get(service_key, 0) + 1
                     self._service_call_last_failure[service_key] = time.time()
 
         # Schedule the recording task
         if self.hass:
             self._create_tracked_task(_record())
 
-    def _validate_climate_capability(
-        self, capability_type: str, value: str | None
-    ) -> bool:
+    def _validate_climate_capability(self, capability_type: str, value: str | None) -> bool:
         """Validate that the climate entity supports a given capability value."""
         if not value:
             return True  # None values are always valid
@@ -631,8 +599,7 @@ class ClimateReactController:
         # Check cache first (valid for configured duration)
         if (
             cache_key in self._capability_validation_time
-            and current_time - self._capability_validation_time[cache_key]
-            < CAPABILITY_CACHE_DURATION_SECONDS
+            and current_time - self._capability_validation_time[cache_key] < CAPABILITY_CACHE_DURATION_SECONDS
         ):
             supported_values = self._validated_capabilities.get(cache_key, set())
             return value in supported_values
@@ -655,9 +622,7 @@ class ClimateReactController:
         elif capability_type == "swing_modes":
             supported_values = set(climate_state.attributes.get("swing_modes", []))
         elif capability_type == "swing_horizontal_modes":
-            supported_values = set(
-                climate_state.attributes.get("swing_horizontal_modes", [])
-            )
+            supported_values = set(climate_state.attributes.get("swing_horizontal_modes", []))
 
         # Cache the validation result
         self._validated_capabilities[cache_key] = supported_values
@@ -675,9 +640,7 @@ class ClimateReactController:
 
         return True
 
-    async def _async_safe_service_call(
-        self, domain: str, service: str, data: dict[str, Any]
-    ) -> bool:
+    async def _async_safe_service_call(self, domain: str, service: str, data: dict[str, Any]) -> bool:
         """Make a service call with retry logic and circuit breaker protection."""
         service_key = f"{domain}.{service}"
 
@@ -688,9 +651,7 @@ class ClimateReactController:
         # Attempt service call with exponential backoff retry
         for attempt in range(MAX_RETRY_ATTEMPTS):
             try:
-                await self.hass.services.async_call(
-                    domain, service, data, blocking=True
-                )
+                await self.hass.services.async_call(domain, service, data, blocking=True)
                 # Success - reset circuit breaker state
                 self._record_service_call_result(service_key, True)
                 if attempt > 0:
@@ -701,7 +662,7 @@ class ClimateReactController:
                         service,
                     )
                 return True
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001
                 if attempt < MAX_RETRY_ATTEMPTS - 1:
                     # Calculate exponential backoff delay
                     delay = BASE_RETRY_DELAY_SECONDS * (2**attempt)
@@ -753,9 +714,7 @@ class ClimateReactController:
         ]
 
         if self.light_entity:
-            entities_to_check.append(
-                (CONF_LIGHT_ENTITY, self.light_entity, "Light entity")
-            )
+            entities_to_check.append((CONF_LIGHT_ENTITY, self.light_entity, "Light entity"))
 
         for conf_key, entity_id, description in entities_to_check:
             if not self.hass.states.get(entity_id):
@@ -870,9 +829,7 @@ class ClimateReactController:
 
         # Start the task processor for efficient background processing
         self._debug("Starting task processor")
-        self._task_processor_task = self.hass.loop.create_task(
-            self._process_task_queue()
-        )
+        self._task_processor_task = self.hass.loop.create_task(self._process_task_queue())
 
         # Initial state evaluation
         await self._async_evaluate_state()
@@ -882,7 +839,7 @@ class ClimateReactController:
         if self._needs_timer_migration:
             try:
                 await self._async_migrate_timer_format()
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001
                 _LOGGER.error("Timer migration failed, clearing flag: %s", exc)
                 self._needs_timer_migration = False
 
@@ -927,15 +884,10 @@ class ClimateReactController:
                     try:
                         task.cancel()
                         cancelled_tasks.append(task)
-                    except RuntimeError as exc:
-                        _LOGGER.exception(
-                            "RuntimeError cancelling queued task during shutdown: %s",
-                            exc,
-                        )
-                    except Exception as exc:
-                        _LOGGER.exception(
-                            "Failed to cancel queued task during shutdown: %s", exc
-                        )
+                    except RuntimeError:
+                        _LOGGER.exception("RuntimeError cancelling queued task during shutdown")
+                    except Exception:
+                        _LOGGER.exception("Failed to cancel queued task during shutdown")
         except asyncio.QueueEmpty:
             pass
         if cancelled_tasks:
@@ -979,14 +931,13 @@ class ClimateReactController:
         self._enabled = False
         # Turn off the climate entity when automation is disabled (matches Node-RED behavior:
         # switch turning off immediately sends climate.set_hvac_mode("off"))
-        if not self._is_climate_off():
-            if not await self._async_safe_service_call(
-                "climate", "turn_off", {"entity_id": self.climate_entity}
-            ):
-                _LOGGER.warning(
-                    "Failed to turn off climate entity %s on disable",
-                    self.climate_entity,
-                )
+        if not self._is_climate_off() and not await self._async_safe_service_call(
+            "climate", "turn_off", {"entity_id": self.climate_entity}
+        ):
+            _LOGGER.warning(
+                "Failed to turn off climate entity %s on disable",
+                self.climate_entity,
+            )
         if self.timer_minutes > 0:
             await self.async_set_timer(0)
         await self._async_apply_light_behavior(enabled=False)
@@ -1054,10 +1005,7 @@ class ClimateReactController:
 
             # Clamp min_temp
             configured_min_temp = config.get(CONF_MIN_TEMP, 18.0)
-            if (
-                self._climate_min_temp is not None
-                and configured_min_temp < self._climate_min_temp
-            ):
+            if self._climate_min_temp is not None and configured_min_temp < self._climate_min_temp:
                 _LOGGER.warning(
                     "Configured min_temp %.1f°C is below climate entity minimum %.1f°C; clamping",
                     configured_min_temp,
@@ -1068,10 +1016,7 @@ class ClimateReactController:
 
             # Clamp max_temp
             configured_max_temp = config.get(CONF_MAX_TEMP, 26.0)
-            if (
-                self._climate_max_temp is not None
-                and configured_max_temp > self._climate_max_temp
-            ):
+            if self._climate_max_temp is not None and configured_max_temp > self._climate_max_temp:
                 _LOGGER.warning(
                     "Configured max_temp %.1f°C is above climate entity maximum %.1f°C; clamping",
                     configured_max_temp,
@@ -1094,14 +1039,10 @@ class ClimateReactController:
                 needs_update = True
 
             if needs_update:
-                self.hass.config_entries.async_update_entry(
-                    self.entry, options=new_options
-                )
+                self.hass.config_entries.async_update_entry(self.entry, options=new_options)
                 self._invalidate_config_cache()
 
-    async def _async_temperature_changed(
-        self, event: Event[EventStateChangedData]
-    ) -> None:
+    async def _async_temperature_changed(self, event: Event[EventStateChangedData]) -> None:
         """Handle temperature sensor state change.
 
         Always capture the reading for UI attributes; only run automation when enabled.
@@ -1126,9 +1067,7 @@ class ClimateReactController:
             # temperature updates occur simultaneously from different event sources
             async with self._state_lock:
                 self._last_temp = temperature
-            _LOGGER.debug(
-                "Temperature changed to %.1f°C for %s", temperature, self.climate_entity
-            )
+            _LOGGER.debug("Temperature changed to %.1f°C for %s", temperature, self.climate_entity)
 
             # Debounce threshold evaluation to prevent excessive processing
             if self._enabled:
@@ -1163,9 +1102,7 @@ class ClimateReactController:
             self._pending_temperature = None
             await self._async_handle_temperature_threshold(temperature)
 
-    async def _async_climate_state_changed(
-        self, event: Event[EventStateChangedData]
-    ) -> None:
+    async def _async_climate_state_changed(self, event: Event[EventStateChangedData]) -> None:
         """Handle all climate entity state changes.
 
         Covers: threshold sync, state evaluation, timer management when disabled,
@@ -1197,10 +1134,7 @@ class ClimateReactController:
         current_mode = new_state.state
 
         # If we set a mode and it changed to something else, it's a manual override
-        if (
-            self._last_set_hvac_mode is not None
-            and current_mode != self._last_set_hvac_mode
-        ):
+        if self._last_set_hvac_mode is not None and current_mode != self._last_set_hvac_mode:
             self._log_state_change(
                 "manual_override",
                 {
@@ -1227,13 +1161,8 @@ class ClimateReactController:
         # Process temperature (outside lock)
         if temp_state and temp_state.state not in (STATE_UNAVAILABLE, STATE_UNKNOWN):
             try:
-                use_external_temp = self.entry.data.get(
-                    CONF_USE_EXTERNAL_TEMP_SENSOR, False
-                )
-                if (
-                    not use_external_temp
-                    and temp_state.entity_id == self.climate_entity
-                ):
+                use_external_temp = self.entry.data.get(CONF_USE_EXTERNAL_TEMP_SENSOR, False)
+                if not use_external_temp and temp_state.entity_id == self.climate_entity:
                     temperature = temp_state.attributes.get("current_temperature")
                     if temperature is not None:
                         temperature = float(temperature)
@@ -1248,9 +1177,7 @@ class ClimateReactController:
 
                 # Schedule task outside lock
                 if enabled:
-                    self._create_tracked_task(
-                        self._async_handle_temperature_threshold(temperature)
-                    )
+                    self._create_tracked_task(self._async_handle_temperature_threshold(temperature))
             except ValueError, TypeError:
                 pass
 
@@ -1321,9 +1248,7 @@ class ClimateReactController:
                 domain=DOMAIN,
             )
 
-            await self._async_set_climate(
-                mode, fan_mode, swing_mode, swing_horizontal_mode, target_temp
-            )
+            await self._async_set_climate(mode, fan_mode, swing_mode, swing_horizontal_mode, target_temp)
 
         elif temperature > max_temp:
             # High temperature - trigger cooling
@@ -1360,9 +1285,7 @@ class ClimateReactController:
                 domain=DOMAIN,
             )
 
-            await self._async_set_climate(
-                mode, fan_mode, swing_mode, swing_horizontal_mode, target_temp
-            )
+            await self._async_set_climate(mode, fan_mode, swing_mode, swing_horizontal_mode, target_temp)
         else:
             _LOGGER.debug(
                 "Temperature %.1f°C within range [%.1f, %.1f] for %s",
@@ -1402,10 +1325,7 @@ class ClimateReactController:
         allow_auxiliary_calls = not (turning_off or staying_off)
 
         # Get configured delay in milliseconds, convert to seconds
-        delay_seconds = (
-            config.get(CONF_DELAY_BETWEEN_COMMANDS, DEFAULT_DELAY_BETWEEN_COMMANDS)
-            / 1000.0
-        )
+        delay_seconds = config.get(CONF_DELAY_BETWEEN_COMMANDS, DEFAULT_DELAY_BETWEEN_COMMANDS) / 1000.0
 
         # Log the climate command
         self._log_state_change(
@@ -1424,9 +1344,7 @@ class ClimateReactController:
         await self._handle_light_control(True, delay_seconds)
 
         # Set HVAC mode
-        climate_state = await self._set_hvac_mode(
-            hvac_mode, climate_state, delay_seconds
-        )
+        climate_state = await self._set_hvac_mode(hvac_mode, climate_state, delay_seconds)
         if climate_state is None:  # Command failed
             return
 
@@ -1454,21 +1372,13 @@ class ClimateReactController:
         """Validate climate entity capabilities and prepare command parameters."""
         # Validate climate entity capabilities before attempting commands
         if hvac_mode and not self._validate_climate_capability("hvac_modes", hvac_mode):
-            _LOGGER.warning(
-                "Skipping climate command due to invalid HVAC mode: %s", hvac_mode
-            )
+            _LOGGER.warning("Skipping climate command due to invalid HVAC mode: %s", hvac_mode)
             return None
         if fan_mode and not self._validate_climate_capability("fan_modes", fan_mode):
-            _LOGGER.warning(
-                "Skipping fan mode setting due to invalid fan mode: %s", fan_mode
-            )
+            _LOGGER.warning("Skipping fan mode setting due to invalid fan mode: %s", fan_mode)
             fan_mode = None
-        if swing_mode and not self._validate_climate_capability(
-            "swing_modes", swing_mode
-        ):
-            _LOGGER.warning(
-                "Skipping swing mode setting due to invalid swing mode: %s", swing_mode
-            )
+        if swing_mode and not self._validate_climate_capability("swing_modes", swing_mode):
+            _LOGGER.warning("Skipping swing mode setting due to invalid swing mode: %s", swing_mode)
             swing_mode = None
         if swing_horizontal_mode and not self._validate_climate_capability(
             "swing_horizontal_modes", swing_horizontal_mode
@@ -1533,9 +1443,7 @@ class ClimateReactController:
         delay_seconds: float,
     ) -> State | None:
         """Set HVAC mode with proper turn_on/off/set_hvac_mode logic."""
-        if not hvac_mode or hvac_mode == (
-            climate_state.state if climate_state else None
-        ):
+        if not hvac_mode or hvac_mode == (climate_state.state if climate_state else None):
             return climate_state
 
         if hvac_mode == MODE_OFF:
@@ -1545,9 +1453,7 @@ class ClimateReactController:
                 "turn_off",
                 {"entity_id": self.climate_entity},
             ):
-                _LOGGER.warning(
-                    "Failed to turn off climate entity %s", self.climate_entity
-                )
+                _LOGGER.warning("Failed to turn off climate entity %s", self.climate_entity)
                 return None
             # Verify it's actually off, fall back to set_hvac_mode if not
             climate_state = self.hass.states.get(self.climate_entity)
@@ -1561,9 +1467,7 @@ class ClimateReactController:
                     "set_hvac_mode",
                     {"entity_id": self.climate_entity, "hvac_mode": MODE_OFF},
                 ):
-                    _LOGGER.warning(
-                        "Failed to set HVAC mode to off for %s", self.climate_entity
-                    )
+                    _LOGGER.warning("Failed to set HVAC mode to off for %s", self.climate_entity)
                     return None
         elif climate_state and climate_state.state == MODE_OFF:
             # Currently off, turning on - use turn_on service
@@ -1572,15 +1476,11 @@ class ClimateReactController:
                 "turn_on",
                 {"entity_id": self.climate_entity},
             ):
-                _LOGGER.warning(
-                    "Failed to turn on climate entity %s", self.climate_entity
-                )
+                _LOGGER.warning("Failed to turn on climate entity %s", self.climate_entity)
                 return None
             # Verify it's in the correct mode, fall back to set_hvac_mode if not
             climate_state = self.hass.states.get(self.climate_entity)
-            if climate_state and (
-                climate_state.state == MODE_OFF or climate_state.state != hvac_mode
-            ):
+            if climate_state and (climate_state.state == MODE_OFF or climate_state.state != hvac_mode):
                 _LOGGER.debug(
                     "turn_on didn't set %s to required mode %s (current: %s), using set_hvac_mode fallback",
                     self.climate_entity,
@@ -1613,7 +1513,7 @@ class ClimateReactController:
                 return None
 
         self._last_set_hvac_mode = hvac_mode
-        self._last_mode_change_time = datetime.now()
+        self._last_mode_change_time = datetime.now()  # noqa: DTZ005
 
         # Persist mode state for HA restart recovery
         await self._async_persist_mode_state()
@@ -1661,11 +1561,7 @@ class ClimateReactController:
                     await asyncio.sleep(delay_seconds)
 
         # Set fan mode if supported and specified
-        if (
-            allow_auxiliary_calls
-            and fan_mode
-            and climate_state.attributes.get("fan_modes")
-        ):
+        if allow_auxiliary_calls and fan_mode and climate_state.attributes.get("fan_modes"):
             current_fan_mode = climate_state.attributes.get("current_fan_mode")
             # Only set if different from current
             if current_fan_mode == fan_mode:
@@ -1690,11 +1586,7 @@ class ClimateReactController:
                     await asyncio.sleep(delay_seconds)
 
         # Set swing mode if supported and specified
-        if (
-            allow_auxiliary_calls
-            and swing_mode
-            and climate_state.attributes.get("swing_modes")
-        ):
+        if allow_auxiliary_calls and swing_mode and climate_state.attributes.get("swing_modes"):
             current_swing_mode = climate_state.attributes.get("swing_mode")
             # Only set if different from current
             if current_swing_mode == swing_mode:
@@ -1719,14 +1611,8 @@ class ClimateReactController:
                     await asyncio.sleep(delay_seconds)
 
         # Set horizontal swing mode if supported and service available
-        if (
-            allow_auxiliary_calls
-            and swing_horizontal_mode
-            and climate_state.attributes.get("swing_horizontal_modes")
-        ):
-            current_swing_horizontal = climate_state.attributes.get(
-                "swing_horizontal_mode"
-            )
+        if allow_auxiliary_calls and swing_horizontal_mode and climate_state.attributes.get("swing_horizontal_modes"):
+            current_swing_horizontal = climate_state.attributes.get("swing_horizontal_mode")
             # Only set if different from current
             if current_swing_horizontal == swing_horizontal_mode:
                 _LOGGER.debug(
@@ -1735,9 +1621,7 @@ class ClimateReactController:
                     self.climate_entity,
                 )
             else:
-                if self.hass.services.has_service(
-                    "climate", "set_swing_horizontal_mode"
-                ):
+                if self.hass.services.has_service("climate", "set_swing_horizontal_mode"):
                     if not await self._async_safe_service_call(
                         "climate",
                         "set_swing_horizontal_mode",
@@ -1789,27 +1673,22 @@ class ClimateReactController:
                 )
 
                 if option == "on":
-                    select_option = self.config.get(
-                        CONF_LIGHT_SELECT_ON_OPTION, DEFAULT_LIGHT_SELECT_ON_OPTION
-                    )
+                    select_option = self.config.get(CONF_LIGHT_SELECT_ON_OPTION, DEFAULT_LIGHT_SELECT_ON_OPTION)
                 else:
-                    select_option = self.config.get(
-                        CONF_LIGHT_SELECT_OFF_OPTION, DEFAULT_LIGHT_SELECT_OFF_OPTION
-                    )
+                    select_option = self.config.get(CONF_LIGHT_SELECT_OFF_OPTION, DEFAULT_LIGHT_SELECT_OFF_OPTION)
 
                 # Only set if different from current
                 current_option = light_state.state
-                if current_option != select_option:
-                    if not await self._async_safe_service_call(
-                        "select",
-                        "select_option",
-                        {"entity_id": entity_id, "option": select_option},
-                    ):
-                        _LOGGER.warning(
-                            "Failed to set select option %s for %s",
-                            select_option,
-                            entity_id,
-                        )
+                if current_option != select_option and not await self._async_safe_service_call(
+                    "select",
+                    "select_option",
+                    {"entity_id": entity_id, "option": select_option},
+                ):
+                    _LOGGER.warning(
+                        "Failed to set select option %s for %s",
+                        select_option,
+                        entity_id,
+                    )
             elif domain in ("light", "switch"):
                 # For light/switch entities, check current state before toggling
                 service = "turn_on" if option == "on" else "turn_off"
@@ -1817,18 +1696,17 @@ class ClimateReactController:
                 target_state = "on" if option == "on" else "off"
 
                 # Only set if different from current
-                if current_state != target_state:
-                    if not await self._async_safe_service_call(
+                if current_state != target_state and not await self._async_safe_service_call(
+                    domain,
+                    service,
+                    {"entity_id": entity_id},
+                ):
+                    _LOGGER.warning(
+                        "Failed to set %s to %s for %s",
                         domain,
-                        service,
-                        {"entity_id": entity_id},
-                    ):
-                        _LOGGER.warning(
-                            "Failed to set %s to %s for %s",
-                            domain,
-                            target_state,
-                            entity_id,
-                        )
+                        target_state,
+                        entity_id,
+                    )
             else:
                 _LOGGER.warning("Unsupported light control entity domain: %s", domain)
         except Exception as exc:  # noqa: BLE001
@@ -1872,7 +1750,7 @@ class ClimateReactController:
                 "Timer started for %s: %d minutes (expires at %s)",
                 self.climate_entity,
                 new_minutes,
-                datetime.fromtimestamp(timer_expiry).isoformat(),
+                datetime.fromtimestamp(timer_expiry, tz=UTC).isoformat(),
             )
         else:
             _LOGGER.debug("Timer cleared for %s", self.climate_entity)
@@ -1887,7 +1765,7 @@ class ClimateReactController:
             self._invalidate_config_cache()
             self._needs_timer_migration = False
             _LOGGER.debug("Migrated timer format for %s", self.climate_entity)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             _LOGGER.warning("Failed to migrate timer format: %s", exc)
 
     async def _async_start_timer_if_needed(self) -> None:
@@ -1910,10 +1788,9 @@ class ClimateReactController:
 
         if missed_expiry is not None:
             _LOGGER.warning(
-                "Timer for %s expired while HA was down (expiry: %s); "
-                "executing missed expiry action now",
+                "Timer for %s expired while HA was down (expiry: %s); " "executing missed expiry action now",
                 self.climate_entity,
-                datetime.fromtimestamp(missed_expiry).isoformat(),
+                datetime.fromtimestamp(missed_expiry, tz=UTC).isoformat(),
             )
             await self._async_handle_timer_expired()
 
@@ -1927,18 +1804,12 @@ class ClimateReactController:
                 # (which also needs _state_lock) and with async_shutdown.
                 async with self._state_lock:
                     current_time = time.time()
-                    expiry_snapshot = (
-                        self._timer_expiry
-                    )  # local copy so Pylance can narrow
-                    timer_expired = (
-                        expiry_snapshot is not None and current_time >= expiry_snapshot
-                    )
+                    expiry_snapshot = self._timer_expiry  # local copy so Pylance can narrow
+                    timer_expired = expiry_snapshot is not None and current_time >= expiry_snapshot
                     should_stop = expiry_snapshot is None or timer_expired
                     # expiry_snapshot is guaranteed non-None when not should_stop
                     remaining_seconds = (
-                        (expiry_snapshot - current_time)
-                        if expiry_snapshot is not None and not should_stop
-                        else 0.0
+                        (expiry_snapshot - current_time) if expiry_snapshot is not None and not should_stop else 0.0
                     )
 
                 # Handle expiry and break OUTSIDE the lock to avoid re-entrant
@@ -1980,16 +1851,19 @@ class ClimateReactController:
         else:
             # Turn off climate if not already off
             climate_state = self.hass.states.get(self.climate_entity)
-            if climate_state and not self._is_climate_off_state(climate_state):
-                if not await self._async_safe_service_call(
+            if (
+                climate_state
+                and not self._is_climate_off_state(climate_state)
+                and not await self._async_safe_service_call(
                     "climate",
                     "turn_off",
                     {"entity_id": self.climate_entity},
-                ):
-                    _LOGGER.warning(
-                        "Failed to turn off climate entity %s during timer expiration",
-                        self.climate_entity,
-                    )
+                )
+            ):
+                _LOGGER.warning(
+                    "Failed to turn off climate entity %s during timer expiration",
+                    self.climate_entity,
+                )
             # Automation was already disabled; still apply light behavior
             await self._async_apply_light_behavior(enabled=False)
 
@@ -2016,9 +1890,7 @@ class ClimateReactController:
         async with self._config_lock:
             new_options = {**self.entry.options}
             new_options[CONF_LAST_MODE_CHANGE_TIME] = (
-                self._last_mode_change_time.isoformat()
-                if self._last_mode_change_time
-                else None
+                self._last_mode_change_time.isoformat() if self._last_mode_change_time else None
             )
             new_options[CONF_LAST_SET_HVAC_MODE] = self._last_set_hvac_mode
             self.hass.config_entries.async_update_entry(self.entry, options=new_options)

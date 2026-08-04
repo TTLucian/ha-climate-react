@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import logging
-from typing import Callable
+from collections.abc import Callable
+from typing import ClassVar
 
 from homeassistant.components.select import SelectEntity
 from homeassistant.config_entries import ConfigEntry
@@ -40,9 +41,7 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up Climate React select entities from a config entry."""
-    controller: ClimateReactController = hass.data[DOMAIN][entry.entry_id][
-        DATA_COORDINATOR
-    ]
+    controller: ClimateReactController = hass.data[DOMAIN][entry.entry_id][DATA_COORDINATOR]
     ent_registry = entity_registry.async_get(hass)
 
     def _build_candidates(state) -> list[SelectEntity]:
@@ -139,9 +138,7 @@ async def async_setup_entry(
         to_add = [
             entity
             for entity in candidates
-            if not ent_registry.async_get_entity_id(
-                "select", DOMAIN, getattr(entity, "unique_id", "")
-            )
+            if not ent_registry.async_get_entity_id("select", DOMAIN, getattr(entity, "unique_id", ""))
         ]
 
         if to_add:
@@ -154,9 +151,7 @@ async def async_setup_entry(
 
     # Centralized registration via controller helper to avoid repeating
     # direct `async_track_state_change_event` usage across entities.
-    _state["unsub_climate"] = controller.register_state_listener(
-        [controller.climate_entity], _on_climate_change
-    )
+    _state["unsub_climate"] = controller.register_state_listener([controller.climate_entity], _on_climate_change)
     entry.async_on_unload(_state["unsub_climate"])  # type: ignore[arg-type]
 
 
@@ -164,11 +159,9 @@ class ClimateReactBaseSelect(SelectEntity):
     """Base class for Climate React select entities."""
 
     _attr_has_entity_name = True
-    _allowed_options: list[str] | None = None  # Optional filter for allowed options
-    _static_extra_options: list[str] = (
-        []
-    )  # Always-available options (not from climate attributes)
-    _attr_options: list[str] = []  # Initialize with empty list
+    _allowed_options: ClassVar[list[str] | None] = None
+    _static_extra_options: ClassVar[list[str]] = []
+    _attr_options: ClassVar[list[str]] = []
     _climate_attr: str | None = None
     _config_key: str
 
@@ -244,9 +237,7 @@ class ClimateReactBaseSelect(SelectEntity):
             if fallback is not None:
                 new_options = {**self._entry.options}
                 new_options[self._config_key] = fallback
-                self.hass.config_entries.async_update_entry(
-                    self._entry, options=new_options
-                )
+                self.hass.config_entries.async_update_entry(self._entry, options=new_options)
 
     async def async_select_option(self, option: str) -> None:
         """Change the selected option."""
@@ -276,8 +267,8 @@ class ClimateReactModeLowTempSelect(ClimateReactBaseSelect):
     _attr_icon = "mdi:thermostat"
     _config_key = CONF_MODE_LOW_TEMP
     _climate_attr = "hvac_modes"
-    _allowed_options = ["heat", "fan_only", "off"]
-    _static_extra_options = [MODE_NONE]
+    _allowed_options: ClassVar[list[str]] = ["heat", "fan_only", "off"]
+    _static_extra_options: ClassVar[list[str]] = [MODE_NONE]
 
     def __init__(self, controller: ClimateReactController, entry: ConfigEntry) -> None:
         """Initialize the select."""
@@ -295,8 +286,8 @@ class ClimateReactModeHighTempSelect(ClimateReactBaseSelect):
     _attr_icon = "mdi:thermostat"
     _config_key = CONF_MODE_HIGH_TEMP
     _climate_attr = "hvac_modes"
-    _allowed_options = ["cool", "fan_only", "off"]
-    _static_extra_options = [MODE_NONE]
+    _allowed_options: ClassVar[list[str]] = ["cool", "fan_only", "off"]
+    _static_extra_options: ClassVar[list[str]] = [MODE_NONE]
 
     def __init__(self, controller: ClimateReactController, entry: ConfigEntry) -> None:
         """Initialize the select."""
@@ -434,9 +425,7 @@ class ClimateReactLightBehaviorSelect(ClimateReactBaseSelect):
             LIGHT_BEHAVIOR_OFF,
             LIGHT_BEHAVIOR_UNCHANGED,
         ]
-        self._attr_current_option = config.get(
-            CONF_LIGHT_BEHAVIOR, LIGHT_BEHAVIOR_UNCHANGED
-        )
+        self._attr_current_option = config.get(CONF_LIGHT_BEHAVIOR, LIGHT_BEHAVIOR_UNCHANGED)
 
     def _refresh_options(self, state) -> None:
         """Light behavior select options are static."""

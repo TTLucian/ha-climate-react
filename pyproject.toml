@@ -4,7 +4,12 @@ version = "0.2.08"
 description = "Home Assistant custom integration: Sensibo-style Climate React automation"
 readme = "README.md"
 requires-python = ">=3.14"
-dependencies = ["homeassistant"]
+dependencies = [
+    "homeassistant",
+    "ruff>=0.16.0",
+    "black>=25.0.0",
+    "mypy>=2.3.0",
+    ]
 
 [tool.ruff]
 line-length = 120
