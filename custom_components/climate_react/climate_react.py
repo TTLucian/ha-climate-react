@@ -120,7 +120,8 @@ class ClimateReactController:
         self.entry = entry
         self._unsub_temp: Callable[[], None] | None = None
         self._unsub_climate: Callable[[], None] | None = None
-        self._enabled = entry.data.get(CONF_ENABLED, DEFAULT_ENABLED)
+        config_data = {**entry.data, **entry.options}
+        self._enabled = config_data.get(CONF_ENABLED, DEFAULT_ENABLED)
         self._last_temp: float | None = None
         self._warned_horizontal_service_missing = False
         self._climate_min_temp: float | None = None
@@ -131,7 +132,6 @@ class ClimateReactController:
         self._cached_min_run_time: int | None = None  # Cached min run time in minutes
         self._needs_timer_migration: bool = False
         # Initialize timer expiry timestamp (migrate from old minutes format if needed)
-        config_data = {**entry.data, **entry.options}
         self._timer_expiry: float | None = None
 
         # Add locks for thread safety (consolidated for better performance)
@@ -915,6 +915,7 @@ class ClimateReactController:
     async def async_enable(self) -> None:
         """Enable Climate React."""
         self._enabled = True
+        await self._async_persist_enabled_state()
         await self._async_evaluate_state()
         await self._async_apply_light_behavior(enabled=True)
         _LOGGER.info("Climate React enabled for %s", self.climate_entity)
@@ -929,6 +930,7 @@ class ClimateReactController:
     async def async_disable(self) -> None:
         """Disable Climate React."""
         self._enabled = False
+        await self._async_persist_enabled_state()
         # Turn off the climate entity when automation is disabled (matches Node-RED behavior:
         # switch turning off immediately sends climate.set_hvac_mode("off"))
         if not self._is_climate_off() and not await self._async_safe_service_call(
@@ -1147,6 +1149,7 @@ class ClimateReactController:
             self._enabled = False
             self._last_set_hvac_mode = None
             # Persist cleared mode state for HA restart recovery
+            await self._async_persist_enabled_state()
             await self._async_persist_mode_state()
             await self._async_apply_light_behavior(enabled=False)
 
@@ -1893,6 +1896,14 @@ class ClimateReactController:
                 self._last_mode_change_time.isoformat() if self._last_mode_change_time else None
             )
             new_options[CONF_LAST_SET_HVAC_MODE] = self._last_set_hvac_mode
+            self.hass.config_entries.async_update_entry(self.entry, options=new_options)
+            self._invalidate_config_cache()
+
+    async def _async_persist_enabled_state(self) -> None:
+        """Persist enabled state to config entry options."""
+        async with self._config_lock:
+            new_options = {**self.entry.options}
+            new_options[CONF_ENABLED] = self._enabled
             self.hass.config_entries.async_update_entry(self.entry, options=new_options)
             self._invalidate_config_cache()
 
