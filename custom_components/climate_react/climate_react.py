@@ -1178,7 +1178,7 @@ class ClimateReactController:
                 # Schedule task outside lock
                 if enabled:
                     self._create_tracked_task(self._async_handle_temperature_threshold(temperature))
-            except (ValueError, TypeError):
+            except ValueError, TypeError:
                 pass
 
     async def _async_handle_temperature_threshold(self, temperature: float) -> None:
