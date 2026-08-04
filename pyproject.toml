@@ -3,7 +3,7 @@ name = "ha-climate-react"
 version = "0.2.08"
 description = "Home Assistant custom integration: Sensibo-style Climate React automation"
 readme = "README.md"
-requires-python = ">=3.14"
+requires-python = ">=3.14,<3.15"
 dependencies = [
     "homeassistant",
     "ruff>=0.16.0",
