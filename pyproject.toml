@@ -3,13 +3,17 @@ name = "ha-climate-react"
 version = "0.2.08"
 description = "Home Assistant custom integration: Sensibo-style Climate React automation"
 readme = "README.md"
-requires-python = ">=3.14,<3.15"
+requires-python = ">=3.14"
 dependencies = [
     "homeassistant",
+]
+
+[dependency-groups]
+dev = [
     "ruff>=0.16.0",
     "black>=25.0.0",
     "mypy>=2.3.0",
-    ]
+]
 
 [tool.ruff]
 line-length = 120
@@ -22,6 +26,7 @@ ignore = [
 
 [tool.black]
 line-length = 120
+target-version = ["py314"]
 
 [tool.mypy]
 python_version = "3.14"

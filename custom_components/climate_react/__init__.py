@@ -48,9 +48,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Setup options update listener
     entry.async_on_unload(entry.add_update_listener(async_update_options))
 
-    _LOGGER.info(
-        "Climate React integration initialized for %s", entry.data[CONF_CLIMATE_ENTITY]
-    )
+    _LOGGER.info("Climate React integration initialized for %s", entry.data[CONF_CLIMATE_ENTITY])
 
     return True
 

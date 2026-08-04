@@ -32,13 +32,9 @@ REDACT_KEYS = {
 }
 
 
-async def async_get_config_entry_diagnostics(
-    hass: HomeAssistant, entry: ConfigEntry
-) -> dict[str, Any]:
+async def async_get_config_entry_diagnostics(hass: HomeAssistant, entry: ConfigEntry) -> dict[str, Any]:
     """Return diagnostics for a config entry."""
-    controller: ClimateReactController = hass.data[DOMAIN][entry.entry_id][
-        DATA_COORDINATOR
-    ]
+    controller: ClimateReactController = hass.data[DOMAIN][entry.entry_id][DATA_COORDINATOR]
     config = controller.config
 
     diagnostics_data = {
@@ -47,9 +43,7 @@ async def async_get_config_entry_diagnostics(
         "configuration": async_redact_data(
             {
                 CONF_CLIMATE_ENTITY: entry.data.get(CONF_CLIMATE_ENTITY),
-                CONF_USE_EXTERNAL_TEMP_SENSOR: entry.data.get(
-                    CONF_USE_EXTERNAL_TEMP_SENSOR
-                ),
+                CONF_USE_EXTERNAL_TEMP_SENSOR: entry.data.get(CONF_USE_EXTERNAL_TEMP_SENSOR),
                 CONF_TEMPERATURE_SENSOR: entry.data.get(CONF_TEMPERATURE_SENSOR),
             },
             REDACT_KEYS,
@@ -86,9 +80,7 @@ async def async_get_config_entry_diagnostics(
             "last_temperature": controller._last_temp,
             "last_set_hvac_mode": controller._last_set_hvac_mode,
             "last_mode_change_time": (
-                str(controller._last_mode_change_time)
-                if controller._last_mode_change_time
-                else None
+                str(controller._last_mode_change_time) if controller._last_mode_change_time else None
             ),
         },
         "persisted_state": {
@@ -104,9 +96,7 @@ async def async_get_config_entry_diagnostics(
                 ]
                 + ([controller.light_entity] if controller.light_entity else [])
             ),
-            "temperature_thresholds_valid": (
-                config.get(CONF_MIN_TEMP, 18.0) < config.get(CONF_MAX_TEMP, 26.0)
-            ),
+            "temperature_thresholds_valid": (config.get(CONF_MIN_TEMP, 18.0) < config.get(CONF_MAX_TEMP, 26.0)),
         },
     }
 

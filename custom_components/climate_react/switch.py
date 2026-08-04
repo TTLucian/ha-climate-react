@@ -26,9 +26,7 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up Climate React switch from a config entry."""
-    controller: ClimateReactController = hass.data[DOMAIN][entry.entry_id][
-        DATA_COORDINATOR
-    ]
+    controller: ClimateReactController = hass.data[DOMAIN][entry.entry_id][DATA_COORDINATOR]
     entities: list[SwitchEntity] = [ClimateReactSwitch(controller, entry)]
     async_add_entities(entities, True)
 
@@ -61,9 +59,7 @@ class ClimateReactSwitch(SwitchEntity):
     @property
     def available(self) -> bool:  # type: ignore[override]
         """Return true if the climate entity is available."""
-        climate_state = self._controller.hass.states.get(
-            self._controller.climate_entity
-        )
+        climate_state = self._controller.hass.states.get(self._controller.climate_entity)
         if not climate_state:
             return False
         return climate_state.state not in (STATE_UNAVAILABLE, STATE_UNKNOWN)
