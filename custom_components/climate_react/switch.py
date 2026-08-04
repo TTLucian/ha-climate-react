@@ -7,7 +7,6 @@ from typing import Any
 
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
@@ -55,14 +54,6 @@ class ClimateReactSwitch(SwitchEntity):
     def is_on(self) -> bool:  # type: ignore[override]
         """Return true if Climate React is enabled."""
         return self._controller.enabled
-
-    @property
-    def available(self) -> bool:  # type: ignore[override]
-        """Return true if the climate entity is available."""
-        climate_state = self._controller.hass.states.get(self._controller.climate_entity)
-        if not climate_state:
-            return False
-        return climate_state.state not in (STATE_UNAVAILABLE, STATE_UNKNOWN)
 
     @property
     def icon(self) -> str:  # type: ignore[override]
