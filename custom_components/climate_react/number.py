@@ -22,7 +22,11 @@ from .const import (
     CONF_TIMER_MINUTES,
     DATA_COORDINATOR,
     DEFAULT_DELAY_BETWEEN_COMMANDS,
+    DEFAULT_MAX_TEMP,
     DEFAULT_MIN_RUN_TIME,
+    DEFAULT_MIN_TEMP,
+    DEFAULT_TEMP_HIGH_TEMP,
+    DEFAULT_TEMP_LOW_TEMP,
     DOMAIN,
 )
 
@@ -56,6 +60,7 @@ class ClimateReactBaseNumber(NumberEntity):
     _attr_has_entity_name = True
     _attr_mode = NumberMode.BOX
     _config_key: str
+    _default_value: float = 0.0
 
     def __init__(self, controller: ClimateReactController, entry: ConfigEntry) -> None:
         """Initialize the number entity."""
@@ -68,13 +73,18 @@ class ClimateReactBaseNumber(NumberEntity):
             "model": "Climate Automation Controller",
         }
 
+    @property
+    def native_value(self) -> float | None:
+        """Always read from the live config entry so restarts never show stale data."""
+        return self._controller.config.get(self._config_key, self._default_value)
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        self.async_write_ha_state()
+
     async def async_set_native_value(self, value: float) -> None:
         """Update the threshold value."""
-        # Update controller - this updates options without full reload
         await self._controller.async_update_option(self._config_key, value)
-
-        # Update local state
-        self._attr_native_value = value
         self.async_write_ha_state()
 
 
@@ -88,14 +98,13 @@ class ClimateReactMinTempNumber(ClimateReactBaseNumber):
     _attr_native_max_value = 40
     _attr_native_step = 0.1
     _config_key = CONF_MIN_TEMP
+    _default_value = DEFAULT_MIN_TEMP
 
     def __init__(self, controller: ClimateReactController, entry: ConfigEntry) -> None:
         """Initialize the min temp number."""
         super().__init__(controller, entry)
         suffix = controller._entity_suffix()
         self._attr_unique_id = f"climate_react_{suffix}_min_temp"
-        config = {**entry.data, **entry.options}
-        self._attr_native_value = config.get(CONF_MIN_TEMP, 18.0)
 
 
 class ClimateReactMaxTempNumber(ClimateReactBaseNumber):
@@ -108,14 +117,13 @@ class ClimateReactMaxTempNumber(ClimateReactBaseNumber):
     _attr_native_max_value = 40
     _attr_native_step = 0.1
     _config_key = CONF_MAX_TEMP
+    _default_value = DEFAULT_MAX_TEMP
 
     def __init__(self, controller: ClimateReactController, entry: ConfigEntry) -> None:
         """Initialize the max temp number."""
         super().__init__(controller, entry)
         suffix = controller._entity_suffix()
         self._attr_unique_id = f"climate_react_{suffix}_max_temp"
-        config = {**entry.data, **entry.options}
-        self._attr_native_value = config.get(CONF_MAX_TEMP, 26.0)
 
 
 class ClimateReactTempLowTempNumber(ClimateReactBaseNumber):
@@ -128,14 +136,13 @@ class ClimateReactTempLowTempNumber(ClimateReactBaseNumber):
     _attr_native_max_value = 40
     _attr_native_step = 0.5
     _config_key = CONF_TEMP_LOW_TEMP
+    _default_value = DEFAULT_TEMP_LOW_TEMP
 
     def __init__(self, controller: ClimateReactController, entry: ConfigEntry) -> None:
         """Initialize the target temp low number."""
         super().__init__(controller, entry)
         suffix = controller._entity_suffix()
         self._attr_unique_id = f"climate_react_{suffix}_temp_low_temp"
-        config = {**entry.data, **entry.options}
-        self._attr_native_value = config.get(CONF_TEMP_LOW_TEMP, 16.0)
 
 
 class ClimateReactTempHighTempNumber(ClimateReactBaseNumber):
@@ -148,14 +155,13 @@ class ClimateReactTempHighTempNumber(ClimateReactBaseNumber):
     _attr_native_max_value = 40
     _attr_native_step = 0.5
     _config_key = CONF_TEMP_HIGH_TEMP
+    _default_value = DEFAULT_TEMP_HIGH_TEMP
 
     def __init__(self, controller: ClimateReactController, entry: ConfigEntry) -> None:
         """Initialize the target temp high number."""
         super().__init__(controller, entry)
         suffix = controller._entity_suffix()
         self._attr_unique_id = f"climate_react_{suffix}_temp_high_temp"
-        config = {**entry.data, **entry.options}
-        self._attr_native_value = config.get(CONF_TEMP_HIGH_TEMP, 30.0)
 
 
 class ClimateReactDelayBetweenCommandsNumber(ClimateReactBaseNumber):
@@ -168,14 +174,13 @@ class ClimateReactDelayBetweenCommandsNumber(ClimateReactBaseNumber):
     _attr_native_max_value = 5000
     _attr_native_step = 100
     _config_key = CONF_DELAY_BETWEEN_COMMANDS
+    _default_value = DEFAULT_DELAY_BETWEEN_COMMANDS
 
     def __init__(self, controller: ClimateReactController, entry: ConfigEntry) -> None:
         """Initialize the delay between commands number."""
         super().__init__(controller, entry)
         suffix = controller._entity_suffix()
         self._attr_unique_id = f"climate_react_{suffix}_delay_between_commands"
-        config = {**entry.data, **entry.options}
-        self._attr_native_value = config.get(CONF_DELAY_BETWEEN_COMMANDS, DEFAULT_DELAY_BETWEEN_COMMANDS)
 
 
 class ClimateReactMinRunTimeNumber(ClimateReactBaseNumber):
@@ -188,14 +193,13 @@ class ClimateReactMinRunTimeNumber(ClimateReactBaseNumber):
     _attr_native_max_value = 120
     _attr_native_step = 1
     _config_key = CONF_MIN_RUN_TIME
+    _default_value = DEFAULT_MIN_RUN_TIME
 
     def __init__(self, controller: ClimateReactController, entry: ConfigEntry) -> None:
         """Initialize the min run time number."""
         super().__init__(controller, entry)
         suffix = controller._entity_suffix()
         self._attr_unique_id = f"climate_react_{suffix}_min_run_time"
-        config = {**entry.data, **entry.options}
-        self._attr_native_value = config.get(CONF_MIN_RUN_TIME, DEFAULT_MIN_RUN_TIME)
 
 
 class ClimateReactTimerNumber(ClimateReactBaseNumber):
@@ -215,7 +219,6 @@ class ClimateReactTimerNumber(ClimateReactBaseNumber):
         super().__init__(controller, entry)
         suffix = controller._entity_suffix()
         self._attr_unique_id = f"climate_react_{suffix}_timer"
-        self._attr_native_value = controller.timer_minutes
         self._remove_listener: Callable[[], None] | None = None
 
     async def async_added_to_hass(self) -> None:

@@ -50,6 +50,10 @@ class ClimateReactSwitch(SwitchEntity):
             "model": "Climate Automation Controller",
         }
 
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        self.async_write_ha_state()
+
     @property
     def is_on(self) -> bool:  # type: ignore[override]
         """Return true if Climate React is enabled."""

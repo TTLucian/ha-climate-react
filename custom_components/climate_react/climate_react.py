@@ -128,6 +128,7 @@ class ClimateReactController:
         self._climate_max_temp: float | None = None
         self._last_mode_change_time: datetime | None = None
         self._last_set_hvac_mode: str | None = None
+        self._climate_command_in_progress = False
         self._cached_config: dict[str, Any] | None = None  # Cache for merged config
         self._cached_min_run_time: int | None = None  # Cached min run time in minutes
         self._needs_timer_migration: bool = False
@@ -593,6 +594,11 @@ class ClimateReactController:
         if not value:
             return True  # None values are always valid
 
+        # Home Assistant climate entities may support turning off even when
+        # `off` is not explicitly listed in `hvac_modes`.
+        if capability_type == "hvac_modes" and value == MODE_OFF:
+            return True
+
         current_time = time.time()
         cache_key = f"{self.climate_entity}_{capability_type}"
 
@@ -651,6 +657,7 @@ class ClimateReactController:
         # Attempt service call with exponential backoff retry
         for attempt in range(MAX_RETRY_ATTEMPTS):
             try:
+                _LOGGER.debug("Sending %s.%s to %s", domain, service, data)
                 await self.hass.services.async_call(domain, service, data, blocking=True)
                 # Success - reset circuit breaker state
                 self._record_service_call_result(service_key, True)
@@ -1117,7 +1124,13 @@ class ClimateReactController:
         # Sync thresholds to climate entity limits on every valid state update.
         # This replaces the former separate _async_climate_available listener.
         await self._async_sync_thresholds_to_climate(new_state)
-        await self._async_evaluate_state()
+
+        # Skip full state evaluation when the climate entity is also the temperature
+        # sensor: _async_temperature_changed fires for the same event and handles
+        # threshold evaluation via the debounce path, so calling _async_evaluate_state
+        # here would produce a duplicate (un-debounced) evaluation 1 second early.
+        if self.temperature_sensor != self.climate_entity:
+            await self._async_evaluate_state()
 
         # Capture enabled state and timer expiry atomically
         # Lock protects reading timer state to get consistent snapshot
@@ -1131,6 +1144,9 @@ class ClimateReactController:
             return
 
         if not enabled:
+            return
+
+        if self._climate_command_in_progress:
             return
 
         current_mode = new_state.state
@@ -1186,8 +1202,16 @@ class ClimateReactController:
 
     async def _async_handle_temperature_threshold(self, temperature: float) -> None:
         """Handle temperature threshold logic."""
-        # Lock protects threshold evaluation to ensure consistent state
-        # and prevent race conditions when mode change timing is checked
+        config = self.config
+        min_temp = config[CONF_MIN_TEMP]
+        max_temp = config[CONF_MAX_TEMP]
+
+        # Clamp to climate limits if available
+        if self._climate_min_temp is not None:
+            min_temp = max(min_temp, self._climate_min_temp)
+        if self._climate_max_temp is not None:
+            max_temp = min(max_temp, self._climate_max_temp)
+
         async with self._state_lock:
             if not self._can_change_mode():
                 self._log_state_change(
@@ -1198,22 +1222,21 @@ class ClimateReactController:
                         "last_change": str(self._last_mode_change_time),
                     },
                 )
-                if _LOGGER.isEnabledFor(logging.DEBUG):
+                if temperature < min_temp:
                     _LOGGER.debug(
-                        "Temperature threshold triggered but minimum run time not elapsed for %s",
+                        "Low temp threshold crossed (%.1f°C < %.1f°C) for %s but minimum run time not elapsed; skipping",
+                        temperature,
+                        min_temp,
+                        self.climate_entity,
+                    )
+                elif temperature > max_temp:
+                    _LOGGER.debug(
+                        "High temp threshold crossed (%.1f°C > %.1f°C) for %s but minimum run time not elapsed; skipping",
+                        temperature,
+                        max_temp,
                         self.climate_entity,
                     )
                 return
-
-        config = self.config
-        min_temp = config[CONF_MIN_TEMP]
-        max_temp = config[CONF_MAX_TEMP]
-
-        # Clamp to climate limits if available
-        if self._climate_min_temp is not None:
-            min_temp = max(min_temp, self._climate_min_temp)
-        if self._climate_max_temp is not None:
-            max_temp = min(max_temp, self._climate_max_temp)
 
         # Determine action based on thresholds
         if temperature < min_temp:
@@ -1313,57 +1336,61 @@ class ClimateReactController:
         if not command:
             return
 
-        hvac_mode = command.get("hvac_mode")
-        fan_mode = command.get("fan_mode")
-        swing_mode = command.get("swing_mode")
-        swing_horizontal_mode = command.get("swing_horizontal_mode")
+        self._climate_command_in_progress = True
+        try:
+            hvac_mode = command.get("hvac_mode")
+            fan_mode = command.get("fan_mode")
+            swing_mode = command.get("swing_mode")
+            swing_horizontal_mode = command.get("swing_horizontal_mode")
 
-        climate_state = self.hass.states.get(self.climate_entity)
-        config = self.config
+            climate_state = self.hass.states.get(self.climate_entity)
+            config = self.config
 
-        # Skip ancillary calls (fan/swing/temperature) when HVAC is off unless we are turning it on now.
-        current_state = climate_state.state if climate_state else None
-        turning_off = hvac_mode == MODE_OFF
-        staying_off = hvac_mode is None and current_state == MODE_OFF
-        allow_auxiliary_calls = not (turning_off or staying_off)
+            # Skip ancillary calls (fan/swing/temperature) when HVAC is off unless we are turning it on now.
+            current_state = climate_state.state if climate_state else None
+            turning_off = hvac_mode == MODE_OFF
+            staying_off = hvac_mode is None and current_state == MODE_OFF
+            allow_auxiliary_calls = not (turning_off or staying_off)
 
-        # Get configured delay in milliseconds, convert to seconds
-        delay_seconds = config.get(CONF_DELAY_BETWEEN_COMMANDS, DEFAULT_DELAY_BETWEEN_COMMANDS) / 1000.0
+            # Get configured delay in milliseconds, convert to seconds
+            delay_seconds = config.get(CONF_DELAY_BETWEEN_COMMANDS, DEFAULT_DELAY_BETWEEN_COMMANDS) / 1000.0
 
-        # Log the climate command
-        self._log_state_change(
-            "climate_command",
-            {
-                "mode": hvac_mode,
-                "fan_mode": fan_mode,
-                "swing_mode": swing_mode,
-                "swing_horizontal_mode": swing_horizontal_mode,
-                "target_temp": target_temp,
-                "delay_seconds": delay_seconds,
-            },
-        )
+            # Log the climate command
+            self._log_state_change(
+                "climate_command",
+                {
+                    "mode": hvac_mode,
+                    "fan_mode": fan_mode,
+                    "swing_mode": swing_mode,
+                    "swing_horizontal_mode": swing_horizontal_mode,
+                    "target_temp": target_temp,
+                    "delay_seconds": delay_seconds,
+                },
+            )
 
-        # Handle light control
-        await self._handle_light_control(True, delay_seconds)
+            # Handle light control
+            await self._handle_light_control(True, delay_seconds)
 
-        # Set HVAC mode
-        climate_state = await self._set_hvac_mode(hvac_mode, climate_state, delay_seconds)
-        if climate_state is None:  # Command failed
-            return
+            # Set HVAC mode
+            climate_state = await self._set_hvac_mode(hvac_mode, climate_state, delay_seconds)
+            if climate_state is None:  # Command failed
+                return
 
-        # Set auxiliary parameters
-        await self._set_auxiliary_parameters(
-            climate_state,
-            allow_auxiliary_calls,
-            target_temp,
-            fan_mode,
-            swing_mode,
-            swing_horizontal_mode,
-            delay_seconds,
-        )
+            # Set auxiliary parameters
+            await self._set_auxiliary_parameters(
+                climate_state,
+                allow_auxiliary_calls,
+                target_temp,
+                fan_mode,
+                swing_mode,
+                swing_horizontal_mode,
+                delay_seconds,
+            )
 
-        # Restore light control
-        await self._handle_light_control(False, delay_seconds)
+            # Restore light control
+            await self._handle_light_control(False, delay_seconds)
+        finally:
+            self._climate_command_in_progress = False
 
     async def _validate_and_prepare_climate_command(
         self,
@@ -1397,6 +1424,8 @@ class ClimateReactController:
         def _clamp(option: str | None, supported_attr: str) -> str | None:
             if not option:
                 return None
+            if supported_attr == "hvac_modes" and option == MODE_OFF:
+                return option
             if not climate_state:
                 return option
             supported = climate_state.attributes.get(supported_attr)
@@ -1447,6 +1476,11 @@ class ClimateReactController:
     ) -> State | None:
         """Set HVAC mode with proper turn_on/off/set_hvac_mode logic."""
         if not hvac_mode or hvac_mode == (climate_state.state if climate_state else None):
+            _LOGGER.debug(
+                "HVAC mode already %s for %s, skipping",
+                hvac_mode or "unset",
+                self.climate_entity,
+            )
             return climate_state
 
         if hvac_mode == MODE_OFF:
@@ -1565,7 +1599,7 @@ class ClimateReactController:
 
         # Set fan mode if supported and specified
         if allow_auxiliary_calls and fan_mode and climate_state.attributes.get("fan_modes"):
-            current_fan_mode = climate_state.attributes.get("current_fan_mode")
+            current_fan_mode = climate_state.attributes.get("fan_mode")
             # Only set if different from current
             if current_fan_mode == fan_mode:
                 _LOGGER.debug(

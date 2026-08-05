@@ -194,6 +194,7 @@ class ClimateReactBaseSelect(SelectEntity):
 
         # Initialize options based on current climate state
         self._refresh_options(self.hass.states.get(self._controller.climate_entity))
+        self.async_write_ha_state()
 
     async def async_will_remove_from_hass(self) -> None:
         """Handle entity removal."""
@@ -225,19 +226,14 @@ class ClimateReactBaseSelect(SelectEntity):
 
         self._attr_options = options
 
-        # Clamp current option to supported list
+        # Restore current option from config entry; fall back to first available for display
+        # only — never persist the fallback, so the user's config is never silently changed.
         config = {**self._entry.data, **self._entry.options}
         config_option = config.get(self._config_key)
         if config_option in options:
             self._attr_current_option = config_option
         else:
-            fallback = options[0] if options else None
-            self._attr_current_option = fallback
-            # Persist fallback to options to keep controller in sync
-            if fallback is not None:
-                new_options = {**self._entry.options}
-                new_options[self._config_key] = fallback
-                self.hass.config_entries.async_update_entry(self._entry, options=new_options)
+            self._attr_current_option = options[0] if options else None
 
     async def async_select_option(self, option: str) -> None:
         """Change the selected option."""
