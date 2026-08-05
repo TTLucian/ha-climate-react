@@ -44,6 +44,13 @@ async def async_setup_entry(
     controller: ClimateReactController = hass.data[DOMAIN][entry.entry_id][DATA_COORDINATOR]
     ent_registry = entity_registry.async_get(hass)
 
+    # Remove stale light behavior entity when light control is disabled
+    if not controller.light_entity:
+        suffix = controller._entity_suffix()
+        stale_id = ent_registry.async_get_entity_id("select", DOMAIN, f"climate_react_{suffix}_light_behavior")
+        if stale_id:
+            ent_registry.async_remove(stale_id)
+
     def _build_candidates(state) -> list[SelectEntity]:
         """Construct all select entities supported by current state."""
 

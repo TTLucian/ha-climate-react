@@ -61,7 +61,6 @@ from .const import (
     DOMAIN,
     LIGHT_BEHAVIOR_OFF,
     LIGHT_BEHAVIOR_ON,
-    LIGHT_BEHAVIOR_UNCHANGED,
     MAX_CONCURRENT_BACKGROUND_TASKS,
     MAX_RETRY_ATTEMPTS,
     MAX_STATE_LOG_ENTRIES,
@@ -959,8 +958,6 @@ class ClimateReactController:
             domain=DOMAIN,
         )
 
-    # Light control is now driven solely by the `light_behavior` select.
-
     async def async_update_thresholds(self, data: dict[str, Any]) -> None:
         """Update thresholds dynamically."""
         # Lock protects threshold config updates to ensure atomic operations
@@ -1368,9 +1365,6 @@ class ClimateReactController:
                 },
             )
 
-            # Handle light control
-            await self._handle_light_control(True, delay_seconds)
-
             # Set HVAC mode
             climate_state = await self._set_hvac_mode(hvac_mode, climate_state, delay_seconds)
             if climate_state is None:  # Command failed
@@ -1386,9 +1380,6 @@ class ClimateReactController:
                 swing_horizontal_mode,
                 delay_seconds,
             )
-
-            # Restore light control
-            await self._handle_light_control(False, delay_seconds)
         finally:
             self._climate_command_in_progress = False
 
@@ -1452,21 +1443,6 @@ class ClimateReactController:
             "swing_mode": swing_mode,
             "swing_horizontal_mode": swing_horizontal_mode,
         }
-
-    async def _handle_light_control(self, turn_off: bool, delay_seconds: float) -> None:
-        """Handle light control toggling for climate commands."""
-        # Light control is active when a light entity is configured and the
-        # configured light behavior is not `unchanged`.
-        light_entity = self.light_entity
-        light_behavior = self.light_behavior
-        toggle_light = light_entity and light_behavior != LIGHT_BEHAVIOR_UNCHANGED
-
-        if toggle_light:
-            assert light_entity is not None
-            option = "off" if turn_off else "on"
-            await self._async_set_light(light_entity, option)
-            if delay_seconds > 0:
-                await asyncio.sleep(delay_seconds)
 
     async def _set_hvac_mode(
         self,
@@ -1942,22 +1918,17 @@ class ClimateReactController:
             self._invalidate_config_cache()
 
     async def _async_apply_light_behavior(self, enabled: bool) -> None:
-        """Apply configured light behavior when automation toggles."""
+        """Apply light behavior when automation switch toggles."""
         light_entity = self.light_entity
         if not light_entity:
             return
         behavior = self.light_behavior
-        if behavior == LIGHT_BEHAVIOR_UNCHANGED:
-            return
-
-        desired = None
-        if behavior == LIGHT_BEHAVIOR_ON:
-            desired = "on" if enabled else "off"
-        elif behavior == LIGHT_BEHAVIOR_OFF:
-            desired = "off" if enabled else "on"
-
-        if desired:
-            await self._async_set_light(light_entity, desired)
+        if behavior == LIGHT_BEHAVIOR_OFF:
+            # "off" means: light follows inverse of switch (off when AC runs, on when stopped)
+            await self._async_set_light(light_entity, "off" if enabled else "on")
+        elif behavior == LIGHT_BEHAVIOR_ON:
+            await self._async_set_light(light_entity, "on" if enabled else "off")
+        # LIGHT_BEHAVIOR_UNCHANGED: do nothing
 
     def _is_climate_off(self) -> bool:
         """Return True if climate entity is currently off."""
