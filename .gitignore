@@ -7,3 +7,4 @@ __pycache__/
 *pyrightconfig*
 *log.log*
 *diag-sample.json*
+*venv*
