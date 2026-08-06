@@ -57,9 +57,7 @@ class ClimateReactSwitch(SwitchEntity):
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
         self._enabled_listener_remove: Callable[[], None] | None = None
-        self._enabled_listener_remove = self._controller.add_enabled_listener(
-            self._on_enabled_updated
-        )
+        self._enabled_listener_remove = self._controller.add_enabled_listener(self._on_enabled_updated)
         self.async_write_ha_state()
 
     async def async_will_remove_from_hass(self) -> None:
