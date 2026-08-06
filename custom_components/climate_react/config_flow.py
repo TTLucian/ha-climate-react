@@ -76,13 +76,6 @@ class SensorStepData(TypedDict, total=False):
     light_entity: str | None
 
 
-class LightOptionsData(TypedDict, total=False):
-    """Type-safe data structure for light options step configuration."""
-
-    light_select_on_option: str
-    light_select_off_option: str
-
-
 class ClimateReactConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Climate React."""
 
@@ -106,29 +99,6 @@ class ClimateReactConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             return False
         if not self.hass.states.get(entity_id):
             errors[field_name] = "entity_not_found"
-            return False
-        return True
-
-    def _validate_entity_domain(
-        self,
-        entity_id: str,
-        allowed_domains: list[str],
-        field_name: str,
-        errors: dict[str, str],
-    ) -> bool:
-        """Validate that an entity belongs to allowed domains.
-
-        Args:
-            entity_id: The entity ID to validate
-            allowed_domains: List of allowed domain prefixes
-            field_name: The field name for error reporting
-            errors: Dictionary to store validation errors
-
-        Returns:
-            True if entity domain is allowed, False otherwise
-        """
-        if not any(entity_id.startswith(domain + ".") for domain in allowed_domains):
-            errors[field_name] = "invalid_domain"
             return False
         return True
 

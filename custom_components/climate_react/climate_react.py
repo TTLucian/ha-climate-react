@@ -56,7 +56,9 @@ from .const import (
     DEFAULT_ENABLE_LIGHT_CONTROL,
     DEFAULT_ENABLED,
     DEFAULT_LIGHT_BEHAVIOR,
+    DEFAULT_MAX_TEMP,
     DEFAULT_MIN_RUN_TIME,
+    DEFAULT_MIN_TEMP,
     DEFAULT_TIMER_MINUTES,
     DOMAIN,
     LIGHT_BEHAVIOR_OFF,
@@ -204,6 +206,9 @@ class ClimateReactController:
 
         self._timer_task: asyncio.Task | None = None
         self._timer_listeners: list[Callable[[], None]] = []
+        # Listeners notified when the enabled state changes (for UI refresh,
+        # e.g. when manual override detection or timer expiry disables automation).
+        self._enabled_listeners: list[Callable[[], None]] = []
 
     def _debug(self, msg: str, *args: Any, **kwargs: Any) -> None:
         """Centralized debug logging helper for controller messages.
@@ -460,6 +465,41 @@ class ClimateReactController:
                 listener()
             except Exception as exc:  # noqa: BLE001
                 _LOGGER.warning("Error notifying timer listener: %s", exc)
+
+    def add_enabled_listener(self, callback: Callable[[], None]) -> Callable[[], None]:
+        """Register a callback to be notified when the enabled state changes.
+
+        This lets entities (e.g. the control switch) refresh their UI when the
+        automation disables itself via manual override detection or timer expiry.
+        """
+        self._enabled_listeners.append(callback)
+        self._debug("Added enabled listener (total listeners: %d)", len(self._enabled_listeners))
+
+        def _remove() -> None:
+            if callback in self._enabled_listeners:
+                self._enabled_listeners.remove(callback)
+                self._debug(
+                    "Removed enabled listener (total listeners: %d)",
+                    len(self._enabled_listeners),
+                )
+
+        return _remove
+
+    def _notify_enabled_listeners(self) -> None:
+        """Notify enabled listeners of an update."""
+        # Create a copy of the list to avoid issues if listeners modify the list
+        total = len(self._enabled_listeners)
+        self._debug(
+            "Notifying %d enabled listener(s) (enabled: %s)",
+            total,
+            self._enabled,
+        )
+
+        for listener in list(self._enabled_listeners):
+            try:
+                listener()
+            except Exception as exc:  # noqa: BLE001
+                _LOGGER.warning("Error notifying enabled listener: %s", exc)
 
     def _can_change_mode(self) -> bool:
         """Check if minimum run time has elapsed since last mode change.
@@ -722,7 +762,7 @@ class ClimateReactController:
         if self.light_entity:
             entities_to_check.append((CONF_LIGHT_ENTITY, self.light_entity, "Light entity"))
 
-        for conf_key, entity_id, description in entities_to_check:
+        for _conf_key, entity_id, description in entities_to_check:
             if not self.hass.states.get(entity_id):
                 issues_found.append(
                     f"⚠️  {description} '{entity_id}' does not exist or is not available. "
@@ -746,7 +786,7 @@ class ClimateReactController:
                 ),
             ]
 
-            for conf_key, mode, description in configured_modes:
+            for _conf_key, mode, description in configured_modes:
                 if mode and mode not in supported_hvac_modes:
                     issues_found.append(
                         f"⚠️  {description} '{mode}' is not supported by climate entity '{self.climate_entity}'. "
@@ -768,7 +808,7 @@ class ClimateReactController:
                 ),
             ]
 
-            for conf_key, fan_mode, description in configured_fan_modes:
+            for _conf_key, fan_mode, description in configured_fan_modes:
                 if fan_mode and fan_mode not in supported_fan_modes:
                     issues_found.append(
                         f"⚠️  {description} '{fan_mode}' is not supported by climate entity '{self.climate_entity}'. "
@@ -790,7 +830,7 @@ class ClimateReactController:
                 ),
             ]
 
-            for conf_key, swing_mode, description in configured_swing_modes:
+            for _conf_key, swing_mode, description in configured_swing_modes:
                 if swing_mode and swing_mode not in supported_swing_modes:
                     issues_found.append(
                         f"⚠️  {description} '{swing_mode}' is not supported by climate entity '{self.climate_entity}'. "
@@ -916,6 +956,9 @@ class ClimateReactController:
         # Clear timer listeners to prevent memory leaks
         self._timer_listeners.clear()
 
+        # Clear enabled listeners to prevent memory leaks
+        self._enabled_listeners.clear()
+
         _LOGGER.info("Climate React controller shut down for %s", self.climate_entity)
 
     async def async_enable(self) -> None:
@@ -932,6 +975,7 @@ class ClimateReactController:
             entity_id=self._get_switch_entity_id(),
             domain=DOMAIN,
         )
+        self._notify_enabled_listeners()
 
     async def async_disable(self) -> None:
         """Disable Climate React."""
@@ -957,6 +1001,7 @@ class ClimateReactController:
             entity_id=self._get_switch_entity_id(),
             domain=DOMAIN,
         )
+        self._notify_enabled_listeners()
 
     async def async_update_thresholds(self, data: dict[str, Any]) -> None:
         """Update thresholds dynamically."""
@@ -1165,6 +1210,7 @@ class ClimateReactController:
             await self._async_persist_enabled_state()
             await self._async_persist_mode_state()
             await self._async_apply_light_behavior(enabled=False)
+            self._notify_enabled_listeners()
 
     async def _async_evaluate_state(self) -> None:
         """Evaluate current sensor states."""
@@ -1194,14 +1240,16 @@ class ClimateReactController:
                 # Schedule task outside lock
                 if enabled:
                     self._create_tracked_task(self._async_handle_temperature_threshold(temperature))
-            except ValueError, TypeError:
+            except (ValueError, TypeError):
                 pass
 
     async def _async_handle_temperature_threshold(self, temperature: float) -> None:
         """Handle temperature threshold logic."""
         config = self.config
-        min_temp = config[CONF_MIN_TEMP]
-        max_temp = config[CONF_MAX_TEMP]
+        # Use .get() with sensible defaults so legacy entries missing these keys
+        # don't raise KeyError when a temperature threshold is crossed.
+        min_temp = config.get(CONF_MIN_TEMP, DEFAULT_MIN_TEMP)
+        max_temp = config.get(CONF_MAX_TEMP, DEFAULT_MAX_TEMP)
 
         # Clamp to climate limits if available
         if self._climate_min_temp is not None:
@@ -1238,7 +1286,7 @@ class ClimateReactController:
         # Determine action based on thresholds
         if temperature < min_temp:
             # Low temperature - trigger heating
-            mode = config[CONF_MODE_LOW_TEMP]
+            mode = config.get(CONF_MODE_LOW_TEMP)
             if mode == MODE_NONE:
                 _LOGGER.debug(
                     "Low temp threshold crossed for %s but mode is 'none', skipping",
@@ -1275,7 +1323,7 @@ class ClimateReactController:
 
         elif temperature > max_temp:
             # High temperature - trigger cooling
-            mode = config[CONF_MODE_HIGH_TEMP]
+            mode = config.get(CONF_MODE_HIGH_TEMP)
             if mode == MODE_NONE:
                 _LOGGER.debug(
                     "High temp threshold crossed for %s but mode is 'none', skipping",

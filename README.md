@@ -14,7 +14,7 @@
 
 ## 📖 Description
 
-A Home Assistant custom integration that automatically controls your HVAC system based on temperature and humidity thresholds. Inspired by Sensibo's Climate React feature.
+A Home Assistant custom integration that automatically controls your HVAC system based on temperature thresholds. Inspired by Sensibo's Climate React feature.
 
 **⚠️ Disclaimer:**
 
@@ -23,15 +23,13 @@ This is an independent, open-source project. It is not affiliated, associated, a
 ## 🌟 Features
 
 - **Automatic Temperature Control**: Switch between heating/cooling based on sensor readings
-- **Humidity Management**: Automatic dehumidification and humidification with humidifier entity support
 - **Flexible Sensor Input**: Use external sensors or climate entity's built-in temperature sensor
 - **Fan & Swing Automation**: Configure different settings for each condition 
-- **Display Light Control**: Optionally toggle the AC display light when automation starts/stops and around commands
+- **Display Light Control**: Optionally toggle the AC display light when automation starts/stops
 - **Countdown Timer**: Built-in timer entity to auto-disable the automation after a set duration
 - **Capability Matching**: Select entities only show modes/fans/swings your climate supports
 - **Minimum Runtime Protection**: Configurable minimum time between mode changes (prevents rapid cycling)
 - **Manual Override Detection**: Gracefully disables automation when user manually changes mode
-- **Enhanced Status Sensor**: Shows current state, temperature, humidity, and thresholds
 - **UI Configuration**: Easy setup through Home Assistant's interface
 - **Dynamic Adjustments**: Update thresholds on-the-fly
 - **Enable/Disable Control**: Simple switch to turn automation on/off
@@ -80,14 +78,13 @@ Full documentation is available in the [integration README](custom_components/cl
 2. Restart Home Assistant
 3. Go to **Settings → Devices & Services → Integrations**
 4. Click **Create Integration** and search for **Climate React**
-5. Step 1: choose your climate entity and toggle features (external temperature, humidity use, external humidity, light control)
-6. Step 2: provide required entities for enabled features (temperature sensor when external temp is on, humidity sensor when external humidity is on, light entity when light control is on); humidifier remains optional
+5. Step 1: choose your climate entity and toggle features (external temperature, light control)
+6. Step 2: provide required entities for enabled features (temperature sensor when external temp is on, light entity when light control is on)
 7. Finish and adjust thresholds/modes in the integration's device settings
 
 ## 💡 Example Use Cases
 
 - **Bedroom**: Keep temperature between 23-24°C, off at night, cool during day
-- **Humidity Control**: Prevent mold - dehumidify above 60%, humidify below 30%
 - **Office**: Maintain 20-25°C, adjust fan speed based on temperature
 - **Energy Efficiency**: Use climate entity's temperature instead of extra sensors
 - **Multi-Zone**: Set up separate instances for bedroom, living room, office, etc.
@@ -98,13 +95,13 @@ All configuration happens through Home Assistant UI:
 
 **Setup (Config Flow):**
 
-- Climate entity (required) plus toggles for external temperature, humidity use, external humidity, and light control
-- Required selectors only for enabled features (external temperature sensor, external humidity sensor, light entity). Humidifier is optional. It should support AC units with humidifier function (testing needed)
+- Climate entity (required) plus toggles for external temperature and light control
+- Required selectors only for enabled features (external temperature sensor, light entity)
 
 **After Setup (Device Entities):**
 
 - **Switch**: Climate React enable/disable and optional light control switch
-- **Numbers**: Temperature/humidity thresholds, target temperatures, delays, minimum runtime, timer minutes
+- **Numbers**: Temperature thresholds, target temperatures, delays, minimum runtime, timer minutes
 - **Selects**: HVAC modes, fan modes, swing modes, light behavior per condition
 - **Sensors**: Status, current readings, timer function
 
@@ -116,12 +113,6 @@ All configuration happens through Home Assistant UI:
 - **Max Temperature**: Temperature at which cooling triggers
 - **Target Temperatures**: Set specific target temp for heating/cooling
 - **Minimum Runtime**: Prevent mode changes within X minutes (default 5)
-
-### Humidity Control (Optional)
-
-- **Min Humidity**: Humidity level to trigger humidification
-- **Max Humidity**: Humidity level to trigger dehumidification
-- Requires humidity sensor and/or humidifier entity
 
 ### Mode Configuration
 

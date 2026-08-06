@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from typing import Any
 
 from homeassistant.components.switch import SwitchEntity
@@ -34,7 +35,10 @@ class ClimateReactSwitch(SwitchEntity):
     """Switch to enable/disable Climate React control."""
 
     _attr_has_entity_name = True
-    _attr_name = "Climate React Control"
+    # Keep the entity name short; with _attr_has_entity_name = True the device
+    # name (e.g. "Climate React Study") is prepended automatically, so a long
+    # name here would produce "Climate React Study Climate React Control".
+    _attr_name = "Control"
     _attr_should_poll = False
 
     def __init__(self, controller: ClimateReactController, entry: ConfigEntry) -> None:
@@ -52,6 +56,21 @@ class ClimateReactSwitch(SwitchEntity):
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
+        self._enabled_listener_remove: Callable[[], None] | None = None
+        self._enabled_listener_remove = self._controller.add_enabled_listener(
+            self._on_enabled_updated
+        )
+        self.async_write_ha_state()
+
+    async def async_will_remove_from_hass(self) -> None:
+        """Handle entity removal."""
+        if self._enabled_listener_remove:
+            self._enabled_listener_remove()
+            self._enabled_listener_remove = None
+        await super().async_will_remove_from_hass()
+
+    def _on_enabled_updated(self) -> None:
+        """Refresh the switch state when the controller toggles itself off."""
         self.async_write_ha_state()
 
     @property

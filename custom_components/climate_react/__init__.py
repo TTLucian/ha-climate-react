@@ -84,4 +84,10 @@ async def async_update_options(hass: HomeAssistant, entry: ConfigEntry) -> None:
         entry_data_cache[entry.entry_id] = dict(entry.data)
         _LOGGER.info("Climate React entry data changed, reloading...")
         await hass.config_entries.async_reload(entry.entry_id)
-    # else: only options changed (modes/thresholds) - controller handles this without reload
+        return
+
+    # Only options changed (modes/thresholds) - controller handles this without
+    # reload, but ensure its cached merged config is invalidated so it picks up
+    # the new option values immediately (e.g. updates made outside the controller).
+    controller: ClimateReactController = hass.data[DOMAIN][entry.entry_id][DATA_COORDINATOR]
+    controller._invalidate_config_cache()
