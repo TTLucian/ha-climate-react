@@ -12,14 +12,20 @@
   </a>
 </p>
 
+## 📖 Description
+
 A Home Assistant custom integration that automatically controls your HVAC system based on temperature and humidity thresholds. Inspired by Sensibo's Climate React feature.
+
+**⚠️ Disclaimer:**
+
+This is an independent, open-source project. It is not affiliated, associated, authorized, endorsed by, or in any way officially connected with Sensibo, or any of its subsidiaries or its affiliates. 'Climate React' is a feature name used by Sensibo.
 
 ## 🌟 Features
 
 - **Automatic Temperature Control**: Switch between heating/cooling based on sensor readings
 - **Humidity Management**: Automatic dehumidification and humidification with humidifier entity support
-- **Flexible Sensor Input**: Use external sensors or climate entity's built-in temperature/humidity
-- **Fan & Swing Automation**: Configure different settings for each condition (cold/hot/humid)
+- **Flexible Sensor Input**: Use external sensors or climate entity's built-in temperature sensor
+- **Fan & Swing Automation**: Configure different settings for each condition 
 - **Display Light Control**: Optionally toggle the AC display light when automation starts/stops and around commands
 - **Countdown Timer**: Built-in timer entity to auto-disable the automation after a set duration
 - **Capability Matching**: Select entities only show modes/fans/swings your climate supports
@@ -121,7 +127,6 @@ All configuration happens through Home Assistant UI:
 
 - **Low Temperature**: Heating mode (heat, fan_only, off)
 - **High Temperature**: Cooling mode (cool, fan_only, off)
-- **High Humidity**: Dehumidify mode (dry, fan_only, off)
 - Only shows modes your climate entity supports
 
 ### Safety Features
@@ -141,7 +146,6 @@ This project follows Home Assistant's integration development guidelines:
 - Proper device grouping
 - State change listeners for sensor monitoring
 
-See [.github/copilot-instructions.md](.github/copilot-instructions.md) for detailed development guidelines.
 
 ## 📝 License
 
