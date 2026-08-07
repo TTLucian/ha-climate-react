@@ -1227,8 +1227,9 @@ class ClimateReactController:
                 use_external_temp = self.entry.data.get(CONF_USE_EXTERNAL_TEMP_SENSOR, False)
                 if not use_external_temp and temp_state.entity_id == self.climate_entity:
                     temperature = temp_state.attributes.get("current_temperature")
-                    if temperature is not None:
-                        temperature = float(temperature)
+                    if temperature is None:
+                        return
+                    temperature = float(temperature)
                 else:
                     temperature = float(temp_state.state)
 
@@ -1241,7 +1242,7 @@ class ClimateReactController:
                 # Schedule task outside lock
                 if enabled:
                     self._create_tracked_task(self._async_handle_temperature_threshold(temperature))
-            except ValueError, TypeError:
+            except (ValueError, TypeError):
                 pass
 
     async def _async_handle_temperature_threshold(self, temperature: float) -> None:
@@ -1279,9 +1280,6 @@ class ClimateReactController:
                 )
                 return
 
-            # Update threshold state
-            self._last_threshold_state = current_threshold_state
-
             if not self._can_change_mode():
                 self._log_state_change(
                     "temperature_threshold_blocked",
@@ -1306,6 +1304,13 @@ class ClimateReactController:
                         self.climate_entity,
                     )
                 return
+
+            # Update threshold state only after the min-run-time gate: a
+            # transition blocked by minimum run time must NOT be committed,
+            # otherwise the duplicate-state check above would suppress every
+            # later retry and the climate would never switch (e.g. the AC
+            # never turning on once the minimum run time has elapsed).
+            self._last_threshold_state = current_threshold_state
 
         # Determine action based on thresholds
         if temperature < min_temp:
