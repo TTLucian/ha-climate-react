@@ -1270,10 +1270,12 @@ class ClimateReactController:
             # Check if we're already in this threshold state - if so, skip
             if self._last_threshold_state == current_threshold_state:
                 _LOGGER.debug(
-                    "Temperature %.1f°C still in '%s' threshold state for %s, skipping duplicate command",
+                    "Temperature %.1f°C still in '%s' threshold state for %s (thresholds: min=%.1f°C, max=%.1f°C), skipping duplicate command",
                     temperature,
                     current_threshold_state,
                     self.climate_entity,
+                    min_temp,
+                    max_temp,
                 )
                 return
 
@@ -1311,7 +1313,9 @@ class ClimateReactController:
             mode = config.get(CONF_MODE_LOW_TEMP)
             if mode == MODE_NONE:
                 _LOGGER.debug(
-                    "Low temp threshold crossed for %s but mode is 'none', skipping",
+                    "Low temp threshold crossed (%.1f°C < %.1f°C) for %s but mode is 'none', skipping",
+                    temperature,
+                    min_temp,
                     self.climate_entity,
                 )
                 return
@@ -1348,7 +1352,9 @@ class ClimateReactController:
             mode = config.get(CONF_MODE_HIGH_TEMP)
             if mode == MODE_NONE:
                 _LOGGER.debug(
-                    "High temp threshold crossed for %s but mode is 'none', skipping",
+                    "High temp threshold crossed (%.1f°C > %.1f°C) for %s but mode is 'none', skipping",
+                    temperature,
+                    max_temp,
                     self.climate_entity,
                 )
                 return
@@ -1882,7 +1888,7 @@ class ClimateReactController:
 
         if missed_expiry is not None:
             _LOGGER.warning(
-                "Timer for %s expired while HA was down (expiry: %s); " "executing missed expiry action now",
+                "Timer for %s expired while HA was down (expiry: %s); executing missed expiry action now",
                 self.climate_entity,
                 datetime.fromtimestamp(missed_expiry, tz=UTC).isoformat(),
             )

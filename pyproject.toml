@@ -1,32 +1,30 @@
 [project]
 name = "ha-climate-react"
-version = "0.2.17"
+version = "0.0.0"
 description = "Home Assistant custom integration: Sensibo-style Climate React automation"
 readme = "README.md"
 requires-python = ">=3.14"
-dependencies = [
-    "homeassistant",
-]
+dependencies = []
 
 [dependency-groups]
 dev = [
     "ruff>=0.16.0",
-    "black>=25.0.0",
     "mypy>=2.3.0",
+    "homeassistant",
+    "pytest",
+    "pytest-homeassistant-custom-component",
 ]
 
 [tool.ruff]
 line-length = 120
+target-version = "py314"
 exclude = [".venv", "__pycache__", ".mypy_cache", ".pytest_cache"]
 
 [tool.ruff.lint]
+select = ["E", "F", "UP"]  # Enable PyUpgrade rules explicitly if desired
 ignore = [
-    "E501",  # line too long (entity IDs)
+    "E501",  # line too long
 ]
-
-[tool.black]
-line-length = 120
-target-version = ["py314"]
 
 [tool.mypy]
 python_version = "3.14"
