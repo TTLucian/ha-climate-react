@@ -7,126 +7,97 @@ on:
     branches: [ main, master ]
 
 jobs:
-  validate-manifest:
-    name: Validate manifest and JSON
+  validate-json:
+    name: Validate JSON and Manifests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Validate integration manifest.json
+
+      - name: Validate JSON Files
         run: |
-          python - <<'PY'
-          import json,sys
-          path = 'custom_components/climate_react/manifest.json'
-          try:
-              with open(path,'r',encoding='utf-8') as f:
-                  json.load(f)
-          except Exception as e:
-              print('manifest.json validation failed:', e)
+          python3 - <<'PY'
+          import json, sys
+
+          files = [
+              'custom_components/climate_react/manifest.json',
+              'custom_components/climate_react/strings.json',
+              'custom_components/climate_react/translations/en.json'
+          ]
+
+          failed = False
+          for file_path in files:
+              try:
+                  with open(file_path, 'r', encoding='utf-8') as f:
+                      json.load(f)
+                  print(f"OK: {file_path}")
+              except Exception as e:
+                  print(f"FAILED: {file_path} - {e}", file=sys.stderr)
+                  failed = True
+
+          if failed:
               sys.exit(1)
-          print('manifest.json OK')
-          PY
-      - name: Validate strings.json
-        run: |
-          python - <<'PY'
-          import json,sys
-          path = 'custom_components/climate_react/strings.json'
-          try:
-              with open(path,'r',encoding='utf-8') as f:
-                  json.load(f)
-          except Exception as e:
-              print('strings.json validation failed:', e)
-              sys.exit(1)
-          print('strings.json OK')
-          PY
-      - name: Validate translations/en.json
-        run: |
-          python - <<'PY'
-          import json,sys
-          path = 'custom_components/climate_react/translations/en.json'
-          try:
-              with open(path,'r',encoding='utf-8') as f:
-                  json.load(f)
-          except Exception as e:
-              print('en.json validation failed:', e)
-              sys.exit(1)
-          print('en.json OK')
           PY
 
   lint:
-    name: Lint (ruff + black)
+    name: Lint & Format (Ruff)
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: [3.14]
     steps:
       - uses: actions/checkout@v4
-      - name: Set up Python
-        uses: actions/setup-python@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
         with:
-          python-version: ${{ matrix.python-version }}
-      - name: Cache pip
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements*.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
-      - name: Install dev dependencies
-        run: python -m pip install --upgrade pip && pip install ruff black
-      - name: Run ruff
+          python-version: "3.14"
+
+      - name: Install Ruff
+        run: uv pip install --system ruff
+
+      - name: Run Ruff Linter
         run: ruff check .
-      - name: Check formatting with black
-        run: black --check .
+
+      - name: Check Formatting with Ruff
+        run: ruff format --check .
 
   type-check:
     name: Type Check (mypy)
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: [3.14]
     steps:
       - uses: actions/checkout@v4
-      - name: Set up Python
-        uses: actions/setup-python@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
         with:
-          python-version: ${{ matrix.python-version }}
-      - name: Cache pip
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements*.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
+          python-version: "3.14"
+
       - name: Install mypy
-        run: python -m pip install --upgrade pip && pip install mypy
-      - name: Run mypy (ignore missing imports for HA runtime libs)
-        run: mypy custom_components || true
+        run: uv pip install --system mypy
+
+      - name: Run mypy
+        run: mypy custom_components/climate_react
 
   tests:
     name: Run tests (pytest)
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: [3.11]
     steps:
       - uses: actions/checkout@v4
-      - name: Set up Python
-        uses: actions/setup-python@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
         with:
-          python-version: ${{ matrix.python-version }}
-      - name: Cache pip
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements*.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
-      - name: Install test deps
-        run: python -m pip install --upgrade pip && pip install pytest
-      - name: Run pytest (if tests present)
+          python-version: "3.14"
+
+      - name: Install test dependencies
+        run: |
+          if [ -f pyproject.toml ]; then
+            uv sync --group dev
+          else
+            uv pip install --system pytest
+          fi
+
+      - name: Run pytest
         run: |
           if [ -d tests ]; then
-            pytest -q
+            uv run pytest -q
           else
-            echo "No tests directory; skipping pytest"
+            echo "No tests directory found; skipping pytest"
           fi
