@@ -130,6 +130,7 @@ class ClimateReactController:
         self._last_mode_change_time: datetime | None = None
         self._last_set_hvac_mode: str | None = None
         self._climate_command_in_progress = False
+        self._last_threshold_state: str | None = None  # Track: "low", "high", or "normal"
         self._cached_config: dict[str, Any] | None = None  # Cache for merged config
         self._cached_min_run_time: int | None = None  # Cached min run time in minutes
         self._needs_timer_migration: bool = False
@@ -1240,7 +1241,7 @@ class ClimateReactController:
                 # Schedule task outside lock
                 if enabled:
                     self._create_tracked_task(self._async_handle_temperature_threshold(temperature))
-            except (ValueError, TypeError):
+            except ValueError, TypeError:
                 pass
 
     async def _async_handle_temperature_threshold(self, temperature: float) -> None:
@@ -1257,7 +1258,28 @@ class ClimateReactController:
         if self._climate_max_temp is not None:
             max_temp = min(max_temp, self._climate_max_temp)
 
+        # Determine current threshold state
+        if temperature < min_temp:
+            current_threshold_state = "low"
+        elif temperature > max_temp:
+            current_threshold_state = "high"
+        else:
+            current_threshold_state = "normal"
+
         async with self._state_lock:
+            # Check if we're already in this threshold state - if so, skip
+            if self._last_threshold_state == current_threshold_state:
+                _LOGGER.debug(
+                    "Temperature %.1f°C still in '%s' threshold state for %s, skipping duplicate command",
+                    temperature,
+                    current_threshold_state,
+                    self.climate_entity,
+                )
+                return
+
+            # Update threshold state
+            self._last_threshold_state = current_threshold_state
+
             if not self._can_change_mode():
                 self._log_state_change(
                     "temperature_threshold_blocked",
@@ -1358,6 +1380,7 @@ class ClimateReactController:
 
             await self._async_set_climate(mode, fan_mode, swing_mode, swing_horizontal_mode, target_temp)
         else:
+            # Temperature is within normal range - turn off climate if it was previously triggered
             _LOGGER.debug(
                 "Temperature %.1f°C within range [%.1f, %.1f] for %s",
                 temperature,
@@ -1365,6 +1388,13 @@ class ClimateReactController:
                 max_temp,
                 self.climate_entity,
             )
+            # Turn off the climate when temperature returns to normal range
+            if not self._is_climate_off():
+                _LOGGER.info(
+                    "Temperature returned to normal range, turning off %s",
+                    self.climate_entity,
+                )
+                await self._async_set_climate(MODE_OFF, None, None, None, None)
 
     async def _async_set_climate(
         self,
@@ -1505,6 +1535,9 @@ class ClimateReactController:
                 hvac_mode or "unset",
                 self.climate_entity,
             )
+            # Still update _last_set_hvac_mode to prevent false manual override detection
+            if hvac_mode:
+                self._last_set_hvac_mode = hvac_mode
             return climate_state
 
         if hvac_mode == MODE_OFF:
