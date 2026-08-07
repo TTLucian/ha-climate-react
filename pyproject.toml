@@ -19,7 +19,13 @@ default-groups = ["dev"]
 
 [tool.ruff]
 line-length = 120
-target-version = "py314"
+# NOTE: target-version is pinned to "py313" (not "py314") as a workaround for a
+# Ruff formatter bug (ruff 0.16.x) that rewrites `except (A, B):` into the
+# invalid Python 2 form `except A, B:` when targeting py314, producing a
+# SyntaxError on Python 3.14. See https://github.com/astral-sh/ruff/issues/25923
+# Revert to "py314" once a Ruff release fixes this. py313-targeted code is
+# valid on Python 3.14, so this is safe.
+target-version = "py313"
 exclude = [".venv", "__pycache__", ".mypy_cache", ".pytest_cache"]
 
 [tool.ruff.lint]
