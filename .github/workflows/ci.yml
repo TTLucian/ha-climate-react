@@ -49,14 +49,12 @@ jobs:
         with:
           python-version: "3.14"
 
-      - name: Install Ruff
-        run: uv pip install --system ruff
-
+      # uvx dynamically fetches and runs ruff in an isolated sandbox
       - name: Run Ruff Linter
-        run: ruff check .
+        run: uvx ruff check .
 
       - name: Check Formatting with Ruff
-        run: ruff format --check .
+        run: uvx ruff format --check .
 
   type-check:
     name: Type Check (mypy)
@@ -69,11 +67,8 @@ jobs:
         with:
           python-version: "3.14"
 
-      - name: Install mypy
-        run: uv pip install --system mypy
-
       - name: Run mypy
-        run: mypy custom_components/climate_react
+        run: uvx mypy custom_components/climate_react
 
   tests:
     name: Run tests (pytest)
@@ -86,17 +81,10 @@ jobs:
         with:
           python-version: "3.14"
 
-      - name: Install test dependencies
-        run: |
-          if [ -f pyproject.toml ]; then
-            uv sync --group dev
-          else
-            uv pip install --system pytest
-          fi
-
-      - name: Run pytest
+      - name: Install dependencies & run pytest
         run: |
           if [ -d tests ]; then
+            uv sync --group dev
             uv run pytest -q
           else
             echo "No tests directory found; skipping pytest"
