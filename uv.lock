@@ -1384,8 +1384,6 @@ source = { virtual = "." }
 
 [package.dev-dependencies]
 dev = [
-    { name = "homeassistant", version = "2026.2.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.14.2'" },
-    { name = "homeassistant", version = "2026.8.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.14.2'" },
     { name = "mypy" },
     { name = "pytest", version = "9.0.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.14.2'" },
     { name = "pytest", version = "9.0.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.14.2'" },
@@ -1398,9 +1396,8 @@ dev = [
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "homeassistant" },
     { name = "mypy", specifier = ">=2.3.0" },
-    { name = "pytest" },
+    { name = "pytest", specifier = ">=9.0.0" },
     { name = "pytest-homeassistant-custom-component" },
     { name = "ruff", specifier = ">=0.16.0" },
 ]

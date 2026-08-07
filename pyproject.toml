@@ -10,10 +10,12 @@ dependencies = []
 dev = [
     "ruff>=0.16.0",
     "mypy>=2.3.0",
-    "homeassistant",
-    "pytest",
+    "pytest>=9.0.0",
     "pytest-homeassistant-custom-component",
 ]
+
+[tool.uv]
+default-groups = ["dev"]
 
 [tool.ruff]
 line-length = 120
@@ -21,12 +23,18 @@ target-version = "py314"
 exclude = [".venv", "__pycache__", ".mypy_cache", ".pytest_cache"]
 
 [tool.ruff.lint]
-select = ["E", "F", "UP"]  # Enable PyUpgrade rules explicitly if desired
+select = ["E", "F", "UP"]
 ignore = [
-    "E501",  # line too long
+    "E501",  # Line too long
 ]
 
 [tool.mypy]
 python_version = "3.14"
 ignore_missing_imports = true
 check_untyped_defs = true
+disable_error_code = ["misc"]  # Prevents HA class attribute assignment errors (_attr_options)
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
