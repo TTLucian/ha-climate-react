@@ -203,7 +203,14 @@ class ClimateReactController:
         last_change_str = config_data.get(CONF_LAST_MODE_CHANGE_TIME)
         if last_change_str:
             try:
-                self._last_mode_change_time = datetime.fromisoformat(last_change_str)
+                restored = datetime.fromisoformat(last_change_str)
+                # Legacy persisted values may be naive (stored before UTC-aware
+                # datetimes were used). Ensure the restored datetime is always
+                # timezone-aware to avoid TypeError when subtracting from
+                # datetime.now(UTC) in _can_change_mode.
+                if restored.tzinfo is None:
+                    restored = restored.replace(tzinfo=UTC)
+                self._last_mode_change_time = restored
             except ValueError:
                 _LOGGER.warning("Invalid last mode change time format: %s", last_change_str)
                 self._last_mode_change_time = None
@@ -215,6 +222,9 @@ class ClimateReactController:
         # Listeners notified when the enabled state changes (for UI refresh,
         # e.g. when manual override detection or timer expiry disables automation).
         self._enabled_listeners: list[Callable[[], None]] = []
+        # Listeners notified when config options change (for entity UI refresh,
+        # e.g. fan/swing selects disabling when the mode select is set to off).
+        self._config_listeners: list[Callable[[], None]] = []
 
     def _debug(self, msg: str, *args: Any, **kwargs: Any) -> None:
         """Centralized debug logging helper for controller messages.
@@ -507,6 +517,24 @@ class ClimateReactController:
             except Exception as exc:  # noqa: BLE001
                 _LOGGER.warning("Error notifying enabled listener: %s", exc)
 
+    def add_config_listener(self, callback: Callable[[], None]) -> Callable[[], None]:
+        """Register a callback to be notified when config options change."""
+        self._config_listeners.append(callback)
+
+        def _remove() -> None:
+            if callback in self._config_listeners:
+                self._config_listeners.remove(callback)
+
+        return _remove
+
+    def _notify_config_listeners(self) -> None:
+        """Notify config listeners of an update."""
+        for listener in list(self._config_listeners):
+            try:
+                listener()
+            except Exception as exc:  # noqa: BLE001
+                _LOGGER.warning("Error notifying config listener: %s", exc)
+
     def _can_change_mode(self) -> bool:
         """Check if minimum run time has elapsed since last mode change.
 
@@ -518,6 +546,12 @@ class ClimateReactController:
         last_change = self._last_mode_change_time
         if last_change is None:
             return True
+
+        # Defensive: ensure last_change is timezone-aware. Legacy persisted
+        # values restored before the UTC fix may still be naive, and subtracting
+        # a naive datetime from datetime.now(UTC) raises TypeError.
+        if last_change.tzinfo is None:
+            last_change = last_change.replace(tzinfo=UTC)
 
         elapsed = datetime.now(UTC) - last_change
         return elapsed >= timedelta(minutes=self._min_run_time_minutes)
@@ -1054,6 +1088,9 @@ class ClimateReactController:
             self.hass.config_entries.async_update_entry(self.entry, options=new_options)
             self._invalidate_config_cache()
         _LOGGER.debug("Option updated for %s: %s = %s", self.climate_entity, key, value)
+        # Notify entities (e.g. fan/swing selects) so they can refresh their
+        # availability when the mode for their threshold side changes.
+        self._notify_config_listeners()
 
     async def _async_sync_thresholds_to_climate(self, climate_state: State) -> None:
         """No-op: room-temperature thresholds are independent of the climate
