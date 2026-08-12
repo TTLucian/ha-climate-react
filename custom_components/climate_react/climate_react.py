@@ -1282,7 +1282,7 @@ class ClimateReactController:
             # Check if we're already in this threshold state - if so, skip
             if self._last_threshold_state == current_threshold_state:
                 _LOGGER.debug(
-                    "Temperature %.1f°C still in '%s' threshold state for %s (thresholds: min=%.1f°C, max=%.1f°C), skipping duplicate command",
+                    "Temperature %.1f°C is in '%s' threshold state for %s (thresholds: min=%.1f°C, max=%.1f°C)",
                     temperature,
                     current_threshold_state,
                     self.climate_entity,
