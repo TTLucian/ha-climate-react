@@ -129,6 +129,11 @@ class ClimateReactController:
         self._climate_max_temp: float | None = None
         self._last_mode_change_time: datetime | None = None
         self._last_set_hvac_mode: str | None = None
+        # Snapshot of the climate parameters (hvac mode, fan, swing, target temp)
+        # that this automation last set or observed on enable. Used to detect
+        # manual overrides: any of these changing outside an automation command
+        # means the user took manual control.
+        self._last_automation_params: dict[str, Any] | None = None
         self._climate_command_in_progress = False
         self._last_threshold_state: str | None = None  # Track: "low", "high", or "normal"
         self._cached_config: dict[str, Any] | None = None  # Cache for merged config
@@ -969,6 +974,9 @@ class ClimateReactController:
         # current temperature (e.g. the AC was off but the temp is still above
         # the high threshold — it must turn on, not be skipped as a duplicate).
         self._last_threshold_state = None
+        # Establish a baseline of the climate parameters under automation control
+        # so any subsequent external change is detected as a manual override.
+        self._last_automation_params = self._capture_climate_params(self.hass.states.get(self.climate_entity))
         await self._async_persist_enabled_state()
         await self._async_evaluate_state()
         await self._async_apply_light_behavior(enabled=True)
@@ -1153,50 +1161,31 @@ class ClimateReactController:
 
         current_mode = new_state.state
 
-        # If we set a mode and it changed, check whether it's a genuine manual
-        # override or the climate device cycling itself (e.g. the AC briefly
-        # switching through off/heating during normal operation).
-        if self._last_set_hvac_mode is not None and current_mode != self._last_set_hvac_mode:
-            # If the temperature is still in an active threshold band, the AC
-            # drifting away from our commanded mode is a device self-cycle
-            # (compressor protection, brief off, etc.), not a user override.
-            # Re-assert our commanded mode instead of disabling the automation.
-            if self._is_temperature_in_active_band():
-                _LOGGER.debug(
-                    "Mode changed to %s for %s while temperature is in active band; "
-                    "treating as device self-cycle, re-asserting commanded mode",
-                    current_mode,
-                    self.climate_entity,
-                )
-                # Reset the latch so the next temperature evaluation re-applies our
-                # intended mode instead of skipping as a duplicate.
-                self._last_threshold_state = None
-                # Re-evaluate immediately so the AC turns back on without waiting
-                # for the next temperature change (important for external sensors).
-                await self._async_evaluate_state()
-            else:
-                # Temperature is in the normal band, so the automation isn't
-                # actively commanding anything — a mode change is a genuine
-                # user override.
-                self._log_state_change(
-                    "manual_override",
-                    {
-                        "old_mode": self._last_set_hvac_mode,
-                        "new_mode": current_mode,
-                        "action": "disable_automation",
-                    },
-                )
+        # Manual override detection: if any climate parameter under this
+        # automation's control changes outside of a command issued by the
+        # automation, the user has taken manual control. Log a warning and
+        # deactivate the automation (turns off the control switch).
+        if not self._climate_params_match(new_state, self._last_automation_params):
+            self._log_state_change(
+                "manual_override",
+                {
+                    "old_mode": self._last_set_hvac_mode,
+                    "new_mode": current_mode,
+                    "action": "disable_automation",
+                },
+            )
 
-                self._enabled = False
-                self._last_set_hvac_mode = None
-                # Clear the threshold latch so a subsequent re-enable re-evaluates
-                # from a clean state.
-                self._last_threshold_state = None
-                # Persist cleared mode state for HA restart recovery
-                await self._async_persist_enabled_state()
-                await self._async_persist_mode_state()
-                await self._async_apply_light_behavior(enabled=False)
-                self._notify_enabled_listeners()
+            self._enabled = False
+            self._last_set_hvac_mode = None
+            self._last_automation_params = None
+            # Clear the threshold latch so a subsequent re-enable re-evaluates
+            # from a clean state.
+            self._last_threshold_state = None
+            # Persist cleared mode state for HA restart recovery
+            await self._async_persist_enabled_state()
+            await self._async_persist_mode_state()
+            await self._async_apply_light_behavior(enabled=False)
+            self._notify_enabled_listeners()
 
     async def _async_evaluate_state(self) -> None:
         """Evaluate current sensor states."""
@@ -1451,6 +1440,22 @@ class ClimateReactController:
                 swing_horizontal_mode,
                 delay_seconds,
             )
+
+            # Record the parameters under automation control from the actual
+            # reported state (falling back to what we sent for any the AC hasn't
+            # echoed yet), so subsequent external changes are detected as overrides.
+            captured = self._capture_climate_params(self.hass.states.get(self.climate_entity))
+            self._last_automation_params = {
+                "hvac_mode": captured["hvac_mode"] or hvac_mode,
+                "fan_mode": captured["fan_mode"] if captured["fan_mode"] is not None else fan_mode,
+                "swing_mode": captured["swing_mode"] if captured["swing_mode"] is not None else swing_mode,
+                "swing_horizontal_mode": (
+                    captured["swing_horizontal_mode"]
+                    if captured["swing_horizontal_mode"] is not None
+                    else swing_horizontal_mode
+                ),
+                "temperature": captured["temperature"] if captured["temperature"] is not None else target_temp,
+            }
         finally:
             self._climate_command_in_progress = False
 
@@ -2010,31 +2015,46 @@ class ClimateReactController:
         state = self.hass.states.get(self.climate_entity)
         return self._is_climate_off_state(state)
 
-    def _is_temperature_in_active_band(self) -> bool:
-        """Return True if the current temperature is above max or below min threshold.
+    def _capture_climate_params(self, state: State | None) -> dict[str, Any]:
+        """Capture the climate parameters that fall under automation control.
 
-        Used to distinguish a genuine user override (temperature in the normal
-        band) from a device self-cycle (temperature still in an active band).
+        Only these are tracked for manual-override detection; the constantly
+        changing current_temperature reading is intentionally excluded.
         """
-        temp_state = self.hass.states.get(self.temperature_sensor)
-        if not temp_state or temp_state.state in (STATE_UNAVAILABLE, STATE_UNKNOWN):
-            return False
-        try:
-            use_external = self.entry.data.get(CONF_USE_EXTERNAL_TEMP_SENSOR, False)
-            if not use_external and temp_state.entity_id == self.climate_entity:
-                temperature = temp_state.attributes.get("current_temperature")
-                if temperature is None:
-                    return False
-                temperature = float(temperature)
-            else:
-                temperature = float(temp_state.state)
-        except Exception:
-            return False
+        if not state:
+            return {}
+        return {
+            "hvac_mode": state.state,
+            "fan_mode": state.attributes.get("fan_mode"),
+            "swing_mode": state.attributes.get("swing_mode"),
+            "swing_horizontal_mode": state.attributes.get("swing_horizontal_mode"),
+            "temperature": state.attributes.get("temperature"),
+        }
 
-        config = self.config
-        min_temp = config.get(CONF_MIN_TEMP, DEFAULT_MIN_TEMP)
-        max_temp = config.get(CONF_MAX_TEMP, DEFAULT_MAX_TEMP)
-        return temperature < min_temp or temperature > max_temp
+    def _climate_params_match(self, state: State | None, expected: dict[str, Any] | None) -> bool:
+        """Return True if the climate state matches the params the automation last set."""
+        if not state or not expected:
+            return True
+
+        def _eq(a: Any, b: Any) -> bool:
+            if a is None or b is None:
+                return a is b
+            if isinstance(a, (int, float)) and isinstance(b, (int, float)):
+                return round(float(a), 1) == round(float(b), 1)
+            return str(a).strip().lower() == str(b).strip().lower()
+
+        if expected.get("hvac_mode") is not None and not _eq(state.state, expected["hvac_mode"]):
+            return False
+        for attr in ("fan_mode", "swing_mode", "swing_horizontal_mode", "temperature"):
+            val = expected.get(attr)
+            if val is None:
+                continue
+            current = state.attributes.get(attr)
+            if current is None:
+                continue  # AC hasn't reported it yet — don't flag as an override
+            if not _eq(current, val):
+                return False
+        return True
 
     @staticmethod
     def _is_climate_off_state(state: State | None) -> bool:
