@@ -233,14 +233,15 @@ class ClimateReactBaseSelect(SelectEntity):
 
         self._attr_options = options
 
-        # Restore current option from config entry; fall back to first available for display
-        # only — never persist the fallback, so the user's config is never silently changed.
+        # Restore current option from config entry. If the configured value is not
+        # in the supported options, show no selection (None) rather than a misleading
+        # fallback that the config does not actually hold.
         config = {**self._entry.data, **self._entry.options}
         config_option = config.get(self._config_key)
         if config_option in options:
             self._attr_current_option = config_option
         else:
-            self._attr_current_option = options[0] if options else None
+            self._attr_current_option = None
 
     async def async_select_option(self, option: str) -> None:
         """Change the selected option."""

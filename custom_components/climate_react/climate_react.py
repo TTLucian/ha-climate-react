@@ -514,7 +514,7 @@ class ClimateReactController:
         if last_change is None:
             return True
 
-        elapsed = datetime.now() - last_change  # noqa: DTZ005
+        elapsed = datetime.now(UTC) - last_change
         return elapsed >= timedelta(minutes=self._min_run_time_minutes)
 
     def _log_state_change(self, change_type: str, details: StateChangeDetails) -> None:
@@ -965,6 +965,10 @@ class ClimateReactController:
     async def async_enable(self) -> None:
         """Enable Climate React."""
         self._enabled = True
+        # Reset the threshold-state latch so re-enabling re-evaluates the
+        # current temperature (e.g. the AC was off but the temp is still above
+        # the high threshold — it must turn on, not be skipped as a duplicate).
+        self._last_threshold_state = None
         await self._async_persist_enabled_state()
         await self._async_evaluate_state()
         await self._async_apply_light_behavior(enabled=True)
@@ -981,6 +985,10 @@ class ClimateReactController:
     async def async_disable(self) -> None:
         """Disable Climate React."""
         self._enabled = False
+        # Clear the threshold latch so the automation re-evaluates from scratch
+        # when it is next enabled (prevents stale "high/low" from suppressing
+        # commands after re-enable).
+        self._last_threshold_state = None
         await self._async_persist_enabled_state()
         # Turn off the climate entity when automation is disabled (matches Node-RED behavior:
         # switch turning off immediately sends climate.set_hvac_mode("off"))
@@ -1012,13 +1020,16 @@ class ClimateReactController:
             # Update config entry options
             new_options = {**self.entry.options}
 
-            if "min_temp" in data:
-                new_options[CONF_MIN_TEMP] = data["min_temp"]
-            if "max_temp" in data:
-                new_options[CONF_MAX_TEMP] = data["max_temp"]
+            if CONF_MIN_TEMP in data:
+                new_options[CONF_MIN_TEMP] = data[CONF_MIN_TEMP]
+            if CONF_MAX_TEMP in data:
+                new_options[CONF_MAX_TEMP] = data[CONF_MAX_TEMP]
 
             self.hass.config_entries.async_update_entry(self.entry, options=new_options)
             self._invalidate_config_cache()
+
+        # Reset the threshold latch so the new thresholds are applied immediately
+        self._last_threshold_state = None
 
         # Re-evaluate state with new thresholds
         await self._async_evaluate_state()
@@ -1037,62 +1048,10 @@ class ClimateReactController:
         _LOGGER.debug("Option updated for %s: %s = %s", self.climate_entity, key, value)
 
     async def _async_sync_thresholds_to_climate(self, climate_state: State) -> None:
-        """Sync configured thresholds to climate entity limits."""
-        # Lock protects climate limit synchronization to ensure atomic updates
-        # and prevent race conditions when climate availability changes occur
-        async with self._config_lock:
-            # Extract climate limits
-            climate_min_temp = climate_state.attributes.get("min_temp")
-            climate_max_temp = climate_state.attributes.get("max_temp")
-
-            if climate_min_temp is not None:
-                self._climate_min_temp = float(climate_min_temp)
-            if climate_max_temp is not None:
-                self._climate_max_temp = float(climate_max_temp)
-
-            # Validate and clamp configured thresholds
-            config = self.config
-            needs_update = False
-            new_options = {**self.entry.options}
-
-            # Clamp min_temp
-            configured_min_temp = config.get(CONF_MIN_TEMP, 18.0)
-            if self._climate_min_temp is not None and configured_min_temp < self._climate_min_temp:
-                _LOGGER.warning(
-                    "Configured min_temp %.1f°C is below climate entity minimum %.1f°C; clamping",
-                    configured_min_temp,
-                    self._climate_min_temp,
-                )
-                new_options[CONF_MIN_TEMP] = self._climate_min_temp
-                needs_update = True
-
-            # Clamp max_temp
-            configured_max_temp = config.get(CONF_MAX_TEMP, 26.0)
-            if self._climate_max_temp is not None and configured_max_temp > self._climate_max_temp:
-                _LOGGER.warning(
-                    "Configured max_temp %.1f°C is above climate entity maximum %.1f°C; clamping",
-                    configured_max_temp,
-                    self._climate_max_temp,
-                )
-                new_options[CONF_MAX_TEMP] = self._climate_max_temp
-                needs_update = True
-
-            # Ensure min <= max
-            final_min = new_options.get(CONF_MIN_TEMP, configured_min_temp)
-            final_max = new_options.get(CONF_MAX_TEMP, configured_max_temp)
-            if final_min > final_max:
-                _LOGGER.warning(
-                    "min_temp %.1f°C > max_temp %.1f°C; swapping values",
-                    final_min,
-                    final_max,
-                )
-                new_options[CONF_MIN_TEMP] = final_max
-                new_options[CONF_MAX_TEMP] = final_min
-                needs_update = True
-
-            if needs_update:
-                self.hass.config_entries.async_update_entry(self.entry, options=new_options)
-                self._invalidate_config_cache()
+        """No-op: room-temperature thresholds are independent of the climate
+        entity's setpoint range (the min_temp/max_temp attributes), so we no
+        longer clamp or persist them here. Kept as a hook for future use."""
+        return
 
     async def _async_temperature_changed(self, event: Event[EventStateChangedData]) -> None:
         """Handle temperature sensor state change.
@@ -1194,24 +1153,50 @@ class ClimateReactController:
 
         current_mode = new_state.state
 
-        # If we set a mode and it changed to something else, it's a manual override
+        # If we set a mode and it changed, check whether it's a genuine manual
+        # override or the climate device cycling itself (e.g. the AC briefly
+        # switching through off/heating during normal operation).
         if self._last_set_hvac_mode is not None and current_mode != self._last_set_hvac_mode:
-            self._log_state_change(
-                "manual_override",
-                {
-                    "old_mode": self._last_set_hvac_mode,
-                    "new_mode": current_mode,
-                    "action": "disable_automation",
-                },
-            )
+            # If the temperature is still in an active threshold band, the AC
+            # drifting away from our commanded mode is a device self-cycle
+            # (compressor protection, brief off, etc.), not a user override.
+            # Re-assert our commanded mode instead of disabling the automation.
+            if self._is_temperature_in_active_band():
+                _LOGGER.debug(
+                    "Mode changed to %s for %s while temperature is in active band; "
+                    "treating as device self-cycle, re-asserting commanded mode",
+                    current_mode,
+                    self.climate_entity,
+                )
+                # Reset the latch so the next temperature evaluation re-applies our
+                # intended mode instead of skipping as a duplicate.
+                self._last_threshold_state = None
+                # Re-evaluate immediately so the AC turns back on without waiting
+                # for the next temperature change (important for external sensors).
+                await self._async_evaluate_state()
+            else:
+                # Temperature is in the normal band, so the automation isn't
+                # actively commanding anything — a mode change is a genuine
+                # user override.
+                self._log_state_change(
+                    "manual_override",
+                    {
+                        "old_mode": self._last_set_hvac_mode,
+                        "new_mode": current_mode,
+                        "action": "disable_automation",
+                    },
+                )
 
-            self._enabled = False
-            self._last_set_hvac_mode = None
-            # Persist cleared mode state for HA restart recovery
-            await self._async_persist_enabled_state()
-            await self._async_persist_mode_state()
-            await self._async_apply_light_behavior(enabled=False)
-            self._notify_enabled_listeners()
+                self._enabled = False
+                self._last_set_hvac_mode = None
+                # Clear the threshold latch so a subsequent re-enable re-evaluates
+                # from a clean state.
+                self._last_threshold_state = None
+                # Persist cleared mode state for HA restart recovery
+                await self._async_persist_enabled_state()
+                await self._async_persist_mode_state()
+                await self._async_apply_light_behavior(enabled=False)
+                self._notify_enabled_listeners()
 
     async def _async_evaluate_state(self) -> None:
         """Evaluate current sensor states."""
@@ -1242,7 +1227,7 @@ class ClimateReactController:
                 # Schedule task outside lock
                 if enabled:
                     self._create_tracked_task(self._async_handle_temperature_threshold(temperature))
-            except (ValueError, TypeError):
+            except Exception:
                 pass
 
     async def _async_handle_temperature_threshold(self, temperature: float) -> None:
@@ -1252,12 +1237,6 @@ class ClimateReactController:
         # don't raise KeyError when a temperature threshold is crossed.
         min_temp = config.get(CONF_MIN_TEMP, DEFAULT_MIN_TEMP)
         max_temp = config.get(CONF_MAX_TEMP, DEFAULT_MAX_TEMP)
-
-        # Clamp to climate limits if available
-        if self._climate_min_temp is not None:
-            min_temp = max(min_temp, self._climate_min_temp)
-        if self._climate_max_temp is not None:
-            max_temp = min(max_temp, self._climate_max_temp)
 
         # Determine current threshold state
         if temperature < min_temp:
@@ -1280,7 +1259,10 @@ class ClimateReactController:
                 )
                 return
 
-            if not self._can_change_mode():
+            # The minimum-run-time gate only applies while the AC is running.
+            # If the AC is off, turn it on immediately when a threshold is
+            # crossed (e.g. on enable, or after the AC self-cycled off).
+            if not self._is_climate_off() and not self._can_change_mode():
                 self._log_state_change(
                     "temperature_threshold_blocked",
                     {
@@ -1391,7 +1373,8 @@ class ClimateReactController:
 
             await self._async_set_climate(mode, fan_mode, swing_mode, swing_horizontal_mode, target_temp)
         else:
-            # Temperature is within normal range - turn off climate if it was previously triggered
+            # Temperature is within normal range - turn off the climate only if
+            # the automation itself turned it on (never a manually-started AC).
             _LOGGER.debug(
                 "Temperature %.1f°C within range [%.1f, %.1f] for %s",
                 temperature,
@@ -1399,8 +1382,7 @@ class ClimateReactController:
                 max_temp,
                 self.climate_entity,
             )
-            # Turn off the climate when temperature returns to normal range
-            if not self._is_climate_off():
+            if self._last_set_hvac_mode is not None and not self._is_climate_off():
                 _LOGGER.info(
                     "Temperature returned to normal range, turning off %s",
                     self.climate_entity,
@@ -1583,13 +1565,14 @@ class ClimateReactController:
             ):
                 _LOGGER.warning("Failed to turn on climate entity %s", self.climate_entity)
                 return None
-            # Verify it's in the correct mode, fall back to set_hvac_mode if not
+            # Verify it actually turned on; only fall back to set_hvac_mode if it
+            # is still off (many ACs briefly transition through another mode after
+            # turn_on, which is not an error).
             climate_state = self.hass.states.get(self.climate_entity)
-            if climate_state and (climate_state.state == MODE_OFF or climate_state.state != hvac_mode):
+            if climate_state and climate_state.state == MODE_OFF:
                 _LOGGER.debug(
-                    "turn_on didn't set %s to required mode %s (current: %s), using set_hvac_mode fallback",
+                    "turn_on didn't turn on %s (current: %s), using set_hvac_mode fallback",
                     self.climate_entity,
-                    hvac_mode,
                     climate_state.state,
                 )
                 if not await self._async_safe_service_call(
@@ -1618,7 +1601,7 @@ class ClimateReactController:
                 return None
 
         self._last_set_hvac_mode = hvac_mode
-        self._last_mode_change_time = datetime.now()  # noqa: DTZ005
+        self._last_mode_change_time = datetime.now(UTC)
 
         # Persist mode state for HA restart recovery
         await self._async_persist_mode_state()
@@ -2026,6 +2009,32 @@ class ClimateReactController:
         """Return True if climate entity is currently off."""
         state = self.hass.states.get(self.climate_entity)
         return self._is_climate_off_state(state)
+
+    def _is_temperature_in_active_band(self) -> bool:
+        """Return True if the current temperature is above max or below min threshold.
+
+        Used to distinguish a genuine user override (temperature in the normal
+        band) from a device self-cycle (temperature still in an active band).
+        """
+        temp_state = self.hass.states.get(self.temperature_sensor)
+        if not temp_state or temp_state.state in (STATE_UNAVAILABLE, STATE_UNKNOWN):
+            return False
+        try:
+            use_external = self.entry.data.get(CONF_USE_EXTERNAL_TEMP_SENSOR, False)
+            if not use_external and temp_state.entity_id == self.climate_entity:
+                temperature = temp_state.attributes.get("current_temperature")
+                if temperature is None:
+                    return False
+                temperature = float(temperature)
+            else:
+                temperature = float(temp_state.state)
+        except Exception:
+            return False
+
+        config = self.config
+        min_temp = config.get(CONF_MIN_TEMP, DEFAULT_MIN_TEMP)
+        max_temp = config.get(CONF_MAX_TEMP, DEFAULT_MAX_TEMP)
+        return temperature < min_temp or temperature > max_temp
 
     @staticmethod
     def _is_climate_off_state(state: State | None) -> bool:
