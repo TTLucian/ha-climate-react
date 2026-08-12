@@ -1221,6 +1221,12 @@ class ClimateReactController:
 
     async def _async_handle_temperature_threshold(self, temperature: float) -> None:
         """Handle temperature threshold logic."""
+        # Never command the climate once the automation has been disabled (e.g.
+        # after a manual override): a debounce task scheduled before the override
+        # could still be pending, and it must not touch the user's climate settings.
+        if not self._enabled:
+            return
+
         config = self.config
         # Use .get() with sensible defaults so legacy entries missing these keys
         # don't raise KeyError when a temperature threshold is crossed.
