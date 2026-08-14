@@ -84,11 +84,3 @@ CAPABILITY_CACHE_DURATION_SECONDS = 300
 
 # Task throttling constants
 MAX_CONCURRENT_BACKGROUND_TASKS = 10
-
-# Manual override detection grace period (seconds)
-# After a climate command, ACs often report transient states (e.g. a brief
-# fan_only before cool) or take a moment to echo all attributes (fan mode,
-# swing mode, target temperature). During this window, state changes are
-# re-baselined rather than treated as manual overrides, preventing spurious
-# automation disable right after the AC turns on.
-MANUAL_OVERRIDE_GRACE_SECONDS = 15
