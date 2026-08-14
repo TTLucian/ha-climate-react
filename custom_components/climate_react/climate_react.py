@@ -63,6 +63,7 @@ from .const import (
     DOMAIN,
     LIGHT_BEHAVIOR_OFF,
     LIGHT_BEHAVIOR_ON,
+    MANUAL_OVERRIDE_GRACE_SECONDS,
     MAX_CONCURRENT_BACKGROUND_TASKS,
     MAX_RETRY_ATTEMPTS,
     MAX_STATE_LOG_ENTRIES,
@@ -135,6 +136,11 @@ class ClimateReactController:
         # means the user took manual control.
         self._last_automation_params: dict[str, Any] | None = None
         self._climate_command_in_progress = False
+        # Timestamp (monotonic) of the last climate command issued by the
+        # automation. Used to implement a grace period after a command during
+        # which the AC's settling/echo state changes are re-baselined instead
+        # of being treated as manual overrides.
+        self._last_command_time: float | None = None
         self._last_threshold_state: str | None = None  # Track: "low", "high", or "normal"
         self._cached_config: dict[str, Any] | None = None  # Cache for merged config
         self._cached_min_run_time: int | None = None  # Cached min run time in minutes
@@ -1200,9 +1206,48 @@ class ClimateReactController:
 
         # Manual override detection: if any climate parameter under this
         # automation's control changes outside of a command issued by the
-        # automation, the user has taken manual control. Log a warning and
-        # deactivate the automation (turns off the control switch).
+        # automation, the user may have taken manual control. But first
+        # distinguish a genuine user override from a device self-cycle:
+        #
+        # - If the temperature is still in an active threshold band, the
+        #   automation is actively commanding the climate. A drift away from
+        #   the commanded params is the device settling or cycling itself
+        #   (compressor protection, brief off, attribute normalization), not
+        #   a user override. Re-assert the commanded mode instead of disabling.
+        # - Only a param change while the temperature is in the normal band
+        #   (automation not actively commanding) is a genuine user override.
+        #
+        # A short grace period after a command additionally absorbs the AC's
+        # settling/echo transitions (e.g. a brief fan_only before cool, or
+        # attributes that arrive a moment after the mode).
         if not self._climate_params_match(new_state, self._last_automation_params):
+            last_command = self._last_command_time
+            if last_command is not None and (time.monotonic() - last_command) < MANUAL_OVERRIDE_GRACE_SECONDS:
+                self._debug(
+                    "Climate state changed within grace period after command; re-baselining (state=%s, elapsed=%.1fs)",
+                    new_state.state,
+                    time.monotonic() - last_command,
+                )
+                self._last_automation_params = self._capture_climate_params(new_state)
+                return
+
+            if self._is_temperature_in_active_band():
+                # Device self-cycle while the automation is actively commanding:
+                # re-assert the commanded mode instead of treating it as an override.
+                self._debug(
+                    "Climate params changed to %s for %s while temperature is in active band; "
+                    "treating as device self-cycle, re-asserting commanded mode",
+                    current_mode,
+                    self.climate_entity,
+                )
+                # Reset the latch so the next temperature evaluation re-applies our
+                # intended mode instead of skipping as a duplicate.
+                self._last_threshold_state = None
+                # Re-evaluate immediately so the AC turns back on without waiting
+                # for the next temperature change (important for external sensors).
+                await self._async_evaluate_state()
+                return
+
             self._log_state_change(
                 "manual_override",
                 {
@@ -1437,6 +1482,9 @@ class ClimateReactController:
             return
 
         self._climate_command_in_progress = True
+        # Record the command time so the post-command grace period can absorb
+        # the AC's settling/echo state changes without flagging a manual override.
+        self._last_command_time = time.monotonic()
         try:
             hvac_mode = command.get("hvac_mode")
             fan_mode = command.get("fan_mode")
@@ -1484,12 +1532,14 @@ class ClimateReactController:
                 delay_seconds,
             )
 
-            # Record the parameters under automation control from the actual
-            # reported state (falling back to what we sent for any the AC hasn't
-            # echoed yet), so subsequent external changes are detected as overrides.
+            # Record the parameters under automation control. Prefer the values
+            # we actually SENT as authoritative, so a stale/transient reading
+            # (e.g. the AC still echoing "off" right after we commanded "cool")
+            # can't baseline a wrong value and trigger a false manual override
+            # when the AC settles to the commanded mode.
             captured = self._capture_climate_params(self.hass.states.get(self.climate_entity))
             self._last_automation_params = {
-                "hvac_mode": captured["hvac_mode"] or hvac_mode,
+                "hvac_mode": hvac_mode if hvac_mode is not None else captured["hvac_mode"],
                 "fan_mode": captured["fan_mode"] if captured["fan_mode"] is not None else fan_mode,
                 "swing_mode": captured["swing_mode"] if captured["swing_mode"] is not None else swing_mode,
                 "swing_horizontal_mode": (
@@ -2057,6 +2107,32 @@ class ClimateReactController:
         """Return True if climate entity is currently off."""
         state = self.hass.states.get(self.climate_entity)
         return self._is_climate_off_state(state)
+
+    def _is_temperature_in_active_band(self) -> bool:
+        """Return True if the current temperature is above max or below min threshold.
+
+        Used to distinguish a genuine user override (temperature in the normal
+        band) from a device self-cycle (temperature still in an active band).
+        """
+        temp_state = self.hass.states.get(self.temperature_sensor)
+        if not temp_state or temp_state.state in (STATE_UNAVAILABLE, STATE_UNKNOWN):
+            return False
+        try:
+            use_external = self.entry.data.get(CONF_USE_EXTERNAL_TEMP_SENSOR, False)
+            if not use_external and temp_state.entity_id == self.climate_entity:
+                temperature = temp_state.attributes.get("current_temperature")
+                if temperature is None:
+                    return False
+                temperature = float(temperature)
+            else:
+                temperature = float(temp_state.state)
+        except Exception:
+            return False
+
+        config = self.config
+        min_temp = config.get(CONF_MIN_TEMP, DEFAULT_MIN_TEMP)
+        max_temp = config.get(CONF_MAX_TEMP, DEFAULT_MAX_TEMP)
+        return temperature < min_temp or temperature > max_temp
 
     def _capture_climate_params(self, state: State | None) -> dict[str, Any]:
         """Capture the climate parameters that fall under automation control.
