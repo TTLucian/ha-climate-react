@@ -97,14 +97,16 @@ class ClimateReactSwitch(SwitchEntity):
         from .const import (
             CONF_MAX_TEMP,
             CONF_MIN_TEMP,
+            DEFAULT_MAX_TEMP,
+            DEFAULT_MIN_TEMP,
         )
 
         config = self._controller.config
         attrs = {
             "climate_entity": self._controller.climate_entity,
             "temperature_sensor": self._controller.temperature_sensor,
-            "min_temp": config.get(CONF_MIN_TEMP),
-            "max_temp": config.get(CONF_MAX_TEMP),
+            "min_temp": config.get(CONF_MIN_TEMP, DEFAULT_MIN_TEMP),
+            "max_temp": config.get(CONF_MAX_TEMP, DEFAULT_MAX_TEMP),
         }
 
         # Add current temperature if available

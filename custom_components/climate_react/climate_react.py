@@ -1238,16 +1238,34 @@ class ClimateReactController:
     def _is_device_settling(self, new_state: State, expected: dict[str, Any]) -> bool:
         """Return True if this looks like the device settling, not a user change.
 
-        Only consulted when the automation is *not* commanding. A unit that was
-        already running the mode the automation previously set, and that has
-        merely dropped some auxiliary attribute while doing so, is settling —
-        not being manually reconfigured.
+        Only consulted when the automation is *not* commanding — either the
+        temperature is in the dead band, or the band is configured to do
+        nothing. The unit may still be running commands this automation gave it,
+        and it will report state changes of its own accord while doing so:
+        stopping the compressor once it reaches the setpoint, dropping swing or
+        fan attributes, normalising a value. None of those are the user.
+
+        The distinguishing signal is whether the unit is in a mode the
+        automation itself selected. A mode the user picked is one this
+        integration never commanded, and that is a genuine override.
         """
-        if not expected:
-            return False
-        # The unit is in a mode the automation itself selected earlier, and the
-        # change was not to a different mode: treat as settling.
-        return self._last_set_hvac_mode is not None and new_state.state == self._last_set_hvac_mode
+        commanded_mode = self._last_set_hvac_mode
+
+        if expected:
+            # In a commanding band, the unit is expected to be in the configured
+            # mode. Staying there while attributes settle is not an override.
+            return new_state.state == commanded_mode
+
+        # Not commanding. Distinguish the unit completing the work we asked of it
+        # from the user stepping in:
+        #   * still in the mode we set            -> settling
+        #   * stopped after running in that mode  -> settling (it reached setpoint)
+        #   * we never commanded anything and it is
+        #     off, so there is nothing running    -> settling
+        #   * anything else                       -> the user
+        if commanded_mode is not None:
+            return new_state.state == commanded_mode or new_state.state == MODE_OFF
+        return new_state.state == MODE_OFF
 
     async def _handle_manual_override(self, new_state: State) -> None:
         """Hand control back to the user after detecting a manual change."""

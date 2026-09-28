@@ -207,10 +207,17 @@ class ClimateReactBaseSelect(SelectEntity):
         """Handle entity removal."""
         if self._unsub_climate:
             self._unsub_climate()
+            self._unsub_climate = None
+        await super().async_will_remove_from_hass()
 
     @callback
-    async def _async_climate_changed(self, event) -> None:
-        """Handle climate entity state changes."""
+    def _async_climate_changed(self, event) -> None:
+        """Handle climate entity state changes.
+
+        Declared as a plain callback rather than a coroutine: this is dispatched
+        synchronously by the state-change listener, so an ``async def`` here would
+        return a coroutine that nobody awaits, so the options would never refresh.
+        """
         self._refresh_options(event.data.get("new_state"))
         self.async_write_ha_state()
 
@@ -245,11 +252,14 @@ class ClimateReactBaseSelect(SelectEntity):
 
     async def async_select_option(self, option: str) -> None:
         """Change the selected option."""
-        if self._attr_options and option not in self._attr_options:
+        if not self._attr_options or option not in self._attr_options:
+            # An empty option list means the unit's capabilities are not known yet;
+            # accepting anything then would persist a value the unit cannot honour.
             _LOGGER.warning(
-                "Option %s not supported by climate entity %s",
+                "Refusing option %r for %s: supported options are %s",
                 option,
-                self._controller.climate_entity,
+                self.entity_id,
+                self._attr_options or "(none reported)",
             )
             return
 
