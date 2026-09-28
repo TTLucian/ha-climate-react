@@ -22,14 +22,14 @@ This is an independent, open-source project. It is not affiliated, associated, a
 
 ## 🌟 Features
 
-- **Automatic Temperature Control**: Switch between heating/cooling based on sensor readings
+- **Automatic Temperature Control**: Two threshold triggers — start the configured high/low commands, otherwise leave the unit to its own thermostat
 - **Flexible Sensor Input**: Use external sensors or climate entity's built-in temperature sensor
 - **Fan & Swing Automation**: Configure different settings for each condition 
 - **Display Light Control**: Optionally toggle the AC display light when automation starts/stops
 - **Countdown Timer**: Built-in timer entity to auto-disable the automation after a set duration
 - **Capability Matching**: Select entities only show modes/fans/swings your climate supports
 - **Minimum Runtime Protection**: Configurable minimum time between mode changes (prevents rapid cycling)
-- **Manual Override Detection**: Gracefully disables automation when user manually changes mode
+- **Manual Override Detection**: Disables the automation when you change the unit, handing control back
 - **UI Configuration**: Easy setup through Home Assistant's interface
 - **Dynamic Adjustments**: Update thresholds on-the-fly
 - **Enable/Disable Control**: Simple switch to turn automation on/off
@@ -109,10 +109,32 @@ All configuration happens through Home Assistant UI:
 
 ### Temperature Control
 
-- **Min Temperature**: Temperature at which heating triggers
-- **Max Temperature**: Temperature at which cooling triggers
-- **Target Temperatures**: Set specific target temp for heating/cooling
-- **Minimum Runtime**: Prevent mode changes within X minutes (default 5)
+The integration has exactly two triggers. The climate unit's own thermostat is
+not part of the logic — the integration only decides *when to start* the unit,
+and the unit decides *when to stop*.
+
+- **Above the maximum temperature** -> apply the high-temperature commands
+  (mode, fan, swing, horizontal swing, target temperature).
+- **Below the minimum temperature** -> apply the low-temperature commands.
+- **Between the two thresholds** -> the integration does nothing at all. The unit
+  keeps running towards its configured setpoint.
+
+Two consequences worth understanding before you configure it:
+
+- **A narrow band gives the unit room to work.** The unit is only *started* at
+  the outer edges. If the temperature comes back inside the band the automation
+  does not stop it — that is the unit's own job.
+- **Band width and setpoint are independent.** `temp_high_temp` is the setpoint
+  the unit aims for once started, not a value the integration enforces. The unit
+  will cool well past the maximum threshold before it stops by itself.
+
+Mode `none` means "do nothing at all" for that band. Mode `off` means "switch the
+unit off", which suits a cooling-only setup where you want the unit stopped once
+the room is cool enough.
+
+**Minimum Runtime** prevents mode changes within X minutes (default 5), so a
+running unit is allowed to actually cool or heat instead of flapping. It never
+blocks starting a unit that is off, and never blocks a move to `off`.
 
 ### Mode Configuration
 
@@ -122,7 +144,7 @@ All configuration happens through Home Assistant UI:
 
 ### Safety Features
 
-- **Manual Override Detection**: Detects manual mode changes and disables automation
+- **Manual Override Detection**: A manual change to the unit disables the automation, handing control back to you
 - **Minimum Runtime**: Prevents rapid mode switching
 - **Capability Matching**: Only creates entities for supported features
 - **Graceful Degradation**: Works without external sensors

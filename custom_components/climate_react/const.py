@@ -84,3 +84,9 @@ CAPABILITY_CACHE_DURATION_SECONDS = 300
 
 # Task throttling constants
 MAX_CONCURRENT_BACKGROUND_TASKS = 10
+
+# Tolerance (in degrees) when comparing a configured target temperature against
+# the value the climate entity reports. Many units round the setpoint to their
+# own target_temp_step, so demanding exact equality would make the automation
+# re-send a setpoint the unit is already holding — forever, on every evaluation.
+TEMPERATURE_TOLERANCE = 0.5
