@@ -140,7 +140,14 @@ blocks starting a unit that is off, and never blocks a move to `off`.
 
 - **Low Temperature**: Heating mode (heat, fan_only, off)
 - **High Temperature**: Cooling mode (cool, fan_only, off)
-- Only shows modes your climate entity supports
+- **None**: Do nothing at all for that band (the unit is left alone)
+- **Off**: Switch the unit off for that band
+
+Each band offers only modes that make sense for it, and only among those does
+it show the ones your unit actually supports. `heat_cool`, `auto` and `dry` are
+deliberately not offered: cooling a cold room or heating a hot one is a
+configuration mistake, so the option is withheld even when the hardware could
+do it. Heating belongs in the low band and cooling in the high one.
 
 ### Safety Features
 

@@ -275,7 +275,15 @@ class ClimateReactBaseSelect(SelectEntity):
 
 
 class ClimateReactModeLowTempSelect(ClimateReactBaseSelect):
-    """Select entity for HVAC mode when temperature is low."""
+    """Select entity for HVAC mode when temperature is low.
+
+    Only modes that make sense when the room is cold are offered. The unit may
+    support far more (dry, auto, heat_cool, ...), but selecting one of those
+    below the low threshold would command the wrong thing — cooling a cold
+    room, or asking a unit to dry it. The allowlist is a deliberate guard
+    against a nonsensical configuration, not a statement about what the
+    hardware can do.
+    """
 
     _attr_name = "Mode Low Temperature"
     _attr_icon = "mdi:thermostat"
@@ -294,7 +302,13 @@ class ClimateReactModeLowTempSelect(ClimateReactBaseSelect):
 
 
 class ClimateReactModeHighTempSelect(ClimateReactBaseSelect):
-    """Select entity for HVAC mode when temperature is high."""
+    """Select entity for HVAC mode when temperature is high.
+
+    The mirror of the low-temperature select: only modes that make sense when
+    the room is hot are offered. Heat below the high threshold, or cooling
+    above the low one, would be a configuration mistake, so those options are
+    deliberately withheld even when the unit supports them.
+    """
 
     _attr_name = "Mode High Temperature"
     _attr_icon = "mdi:thermostat"
