@@ -145,6 +145,7 @@ blocks starting a unit that is off, and never blocks a move to `off`.
 ### Safety Features
 
 - **Manual Override Detection**: A manual change to the unit disables the automation, handing control back to you
+- **Offline Safety**: A missing or unavailable unit is never commanded; the integration waits, logs it, and acts when it returns
 - **Minimum Runtime**: Prevents rapid mode switching
 - **Capability Matching**: Only creates entities for supported features
 - **Graceful Degradation**: Works without external sensors

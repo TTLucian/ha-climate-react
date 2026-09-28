@@ -153,6 +153,9 @@ class ClimateReactController:
         # Climate entity capability validation
         self._validated_capabilities: dict[str, set[str]] = {}
         self._capability_validation_time: dict[str, float] = {}
+        # Tracks whether the climate entity was last seen in a usable state, so
+        # the unavailable -> available transition can be detected and acted on.
+        self._entity_was_available: bool = False
 
         # Enhanced state change tracking for debugging
         self._state_change_log: deque[dict[str, Any]] = deque(maxlen=MAX_STATE_LOG_ENTRIES)
@@ -746,6 +749,18 @@ class ClimateReactController:
             )
             return False
 
+        # An unavailable or unknown entity reports no capabilities at all. Caching
+        # that empty set would make every capability check fail for the whole
+        # cache duration — long after the unit came back — so wait instead.
+        if climate_state.state in (STATE_UNAVAILABLE, STATE_UNKNOWN):
+            _LOGGER.debug(
+                "Cannot validate %s capability: climate entity %s is %s",
+                capability_type,
+                self.climate_entity,
+                climate_state.state,
+            )
+            return False
+
         supported_values = set()
         if capability_type == "hvac_modes":
             supported_values = set(climate_state.attributes.get("hvac_modes", []))
@@ -1065,14 +1080,17 @@ class ClimateReactController:
         self._enabled = False
         await self._async_persist_enabled_state()
         # Turn off the climate entity when automation is disabled, so the switch
-        # turning off hands control straight back to the user.
-        if not self._is_climate_off() and not await self._async_safe_service_call(
-            "climate", "turn_off", {"entity_id": self.climate_entity}
-        ):
-            _LOGGER.warning(
-                "Failed to turn off climate entity %s on disable",
-                self.climate_entity,
-            )
+        # turning off hands control straight back to the user. Skipped while the
+        # unit is unavailable — there is nothing to command, and the state
+        # listener will not re-run this path when it returns.
+        if self._is_entity_available() and not self._is_climate_off():
+            if not await self._async_safe_service_call(
+                "climate", "turn_off", {"entity_id": self.climate_entity}
+            ):
+                _LOGGER.warning(
+                    "Failed to turn off climate entity %s on disable",
+                    self.climate_entity,
+                )
         if self.timer_minutes > 0:
             await self.async_set_timer(0)
         await self._async_apply_light_behavior(enabled=False)
@@ -1166,12 +1184,38 @@ class ClimateReactController:
         and manual override detection when enabled.
         """
         new_state: State | None = event.data.get("new_state")
-        if not new_state or new_state.state in (STATE_UNAVAILABLE, STATE_UNKNOWN):
+
+        # Monitor availability explicitly. When the unit comes back we
+        # re-evaluate so any threshold that came due while it was away is acted
+        # on then, and log the transition so an outage is visible rather than
+        # silent.
+        # Hard gate: an unavailable, unknown or missing unit is never acted on,
+        # whatever the previous state was. Without this, an outage reaching the
+        # override logic below is indistinguishable from a user switching the
+        # unit, and the automation would disable itself every time the
+        # integration lost the device.
+        if new_state is None or new_state.state in (STATE_UNAVAILABLE, STATE_UNKNOWN):
+            _LOGGER.warning(
+                "Climate entity %s is %s; holding commands until it returns",
+                self.climate_entity,
+                new_state.state if new_state is not None else "missing",
+            )
+            self._invalidate_capability_cache()
+            self._entity_was_available = False
             return
 
-        # Sync thresholds to climate entity limits on every valid state update.
-        # This replaces the former separate _async_climate_available listener.
-        await self._async_sync_thresholds_to_climate(new_state)
+        became_available = not self._entity_was_available
+        self._entity_was_available = True
+
+        if became_available:
+            _LOGGER.info(
+                "Climate entity %s is available again; re-evaluating thresholds",
+                self.climate_entity,
+            )
+            # Capabilities reported before an outage may be stale, and a check
+            # made while it was down must not be trusted afterwards.
+            self._invalidate_capability_cache()
+            await self._async_evaluate_state()
 
         # Skip full state evaluation when the climate entity is also the temperature
         # sensor: _async_temperature_changed fires for the same event and handles
@@ -1345,6 +1389,19 @@ class ClimateReactController:
         # after a manual override): a debounce task scheduled before the override
         # could still be pending, and it must not touch the user's climate settings.
         if not self._enabled:
+            return
+
+        # A missing or unavailable unit cannot be commanded and must not be
+        # reasoned about. Treating it as "off" would make us skip the command we
+        # actually owe it; treating it as available would have us send service
+        # calls into the void. Wait for it to come back — the state listener
+        # re-evaluates on the transition to available.
+        if not self._is_entity_available():
+            _LOGGER.debug(
+                "Climate entity %s is unavailable; deferring threshold evaluation for %.1f°C",
+                self.climate_entity,
+                temperature,
+            )
             return
 
         config = self.config
@@ -1979,7 +2036,9 @@ class ClimateReactController:
         async with self._state_lock:
             new_minutes: int = max(0, minutes)
 
-            # If timer requested while both automation and climate are off, reset to zero
+            # A timer is only pointless if the automation is disabled *and* the
+            # unit is genuinely off. An unavailable unit is not known to be off,
+            # so the timer is kept and will fire when the unit returns.
             if new_minutes > 0 and not self._enabled and self._is_climate_off():
                 new_minutes = 0
 
@@ -2109,21 +2168,20 @@ class ClimateReactController:
             # async_disable internally calls _async_apply_light_behavior(enabled=False)
             await self.async_disable()
         else:
-            # Turn off climate if not already off
+            # Turn off climate if not already off. Guarded on availability: an
+            # unavailable unit cannot be commanded, and skipping here means we
+            # simply do not stop a unit we cannot see.
             climate_state = self.hass.states.get(self.climate_entity)
-            if (
-                climate_state
-                and not self._is_climate_off_state(climate_state)
-                and not await self._async_safe_service_call(
+            if self._is_entity_available() and not self._is_climate_off_state(climate_state):
+                if not await self._async_safe_service_call(
                     "climate",
                     "turn_off",
                     {"entity_id": self.climate_entity},
-                )
-            ):
-                _LOGGER.warning(
-                    "Failed to turn off climate entity %s during timer expiration",
-                    self.climate_entity,
-                )
+                ):
+                    _LOGGER.warning(
+                        "Failed to turn off climate entity %s during timer expiration",
+                        self.climate_entity,
+                    )
             # Automation was already disabled; still apply light behavior
             await self._async_apply_light_behavior(enabled=False)
 
@@ -2177,10 +2235,45 @@ class ClimateReactController:
             await self._async_set_light(light_entity, "on" if enabled else "off")
         # LIGHT_BEHAVIOR_UNCHANGED: do nothing
 
-    def _is_climate_off(self) -> bool:
-        """Return True if climate entity is currently off."""
+    def _invalidate_capability_cache(self) -> None:
+        """Drop cached capability lookups.
+
+        Called when the climate entity goes offline or comes back: an offline
+        unit reports no capabilities, and anything learned before the outage may
+        no longer be accurate.
+        """
+        if self._validated_capabilities:
+            self._debug("Invalidating cached climate capabilities")
+        self._validated_capabilities.clear()
+        self._capability_validation_time.clear()
+
+    def _is_entity_available(self) -> bool:
+        """Return True only if the climate entity exists and is usable right now.
+
+        An entity that is missing, ``unavailable`` or ``unknown`` is *not* the
+        same as an entity that is switched off. The distinction matters: a
+        missing entity must never be treated as "off", or the automation will
+        believe the unit is already doing what it was asked and skip the
+        command. Nor may it be treated as "available" and sent a command. In
+        both cases the right action is to wait and watch.
+        """
         state = self.hass.states.get(self.climate_entity)
-        return self._is_climate_off_state(state)
+        if state is None:
+            return False
+        return state.state not in (STATE_UNAVAILABLE, STATE_UNKNOWN)
+
+    def _is_climate_off(self) -> bool:
+        """Return True if the climate entity is known to be off.
+
+        Deliberately returns False for a missing or unavailable entity: we do
+        not know its state, and assuming "off" would make callers skip work that
+        still needs doing. Callers that intend to act must gate on
+        ``_is_entity_available()`` first.
+        """
+        state = self.hass.states.get(self.climate_entity)
+        if state is None or state.state in (STATE_UNAVAILABLE, STATE_UNKNOWN):
+            return False
+        return state.state == MODE_OFF
 
     def _is_temperature_in_active_band(self) -> bool:
         """Return True if the integration is currently commanding the climate.
