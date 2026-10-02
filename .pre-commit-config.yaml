@@ -1,0 +1,56 @@
+repos:
+  # These revs must track the tool versions in pyproject.toml / uv.lock
+  # (ruff 0.16.1, mypy 2.3.0). Hooks that drift from the locked versions can
+  # pass on things CI rejects, or fail on things CI accepts, and a mirror that
+  # does not mirror reads as a passing check.
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.1
+    hooks:
+      - id: ruff
+        args: [--fix]
+        # CI runs ruff over the whole repository. Scoping the hook to the
+        # component alone leaves every file in tests/ unchecked until CI says so.
+        files: ^(custom_components/climate_react/|tests/|\.github/scripts/)
+      - id: ruff-format
+        files: ^(custom_components/climate_react/|tests/|\.github/scripts/)
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v2.3.0
+    hooks:
+      - id: mypy
+        args:
+          # Without these the hook dies with "Source file found twice under
+          # different module names", because it hands mypy individual file
+          # paths. CI passes the same two flags for the same reason.
+          - --namespace-packages
+          - --explicit-package-bases
+        files: ^(custom_components/climate_react/|tests/|\.github/scripts/)
+        additional_dependencies:
+          - homeassistant
+          - pyyaml
+          - packaging
+
+  # CI runs actionlint from its Docker image, so the hook uses the identical
+  # image and version: a local run then checks exactly what CI checks. The
+  # plain `actionlint` hook would compile via Go and, critically, would skip
+  # every shellcheck rule when shellcheck is absent locally. Requires Docker.
+  - repo: https://github.com/rhysd/actionlint
+    rev: v1.7.12
+    hooks:
+      - id: actionlint-docker
+
+  - repo: local
+    hooks:
+      - id: uv-lock-check
+        name: uv lock is up to date
+        entry: uv lock --check
+        language: system
+        pass_filenames: false
+        files: ^(pyproject\.toml|uv\.lock)$
+
+      - id: pytest
+        name: pytest
+        entry: pytest
+        language: system
+        pass_filenames: false
+        stages: [pre-push]

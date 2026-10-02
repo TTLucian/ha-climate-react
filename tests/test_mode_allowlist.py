@@ -25,7 +25,9 @@ async def test_low_band_offers_only_sensible_modes(hass: HomeAssistant, climate)
     await setup_controller(hass, entry)
     await hass.async_block_till_done()
 
-    options = hass.states.get("select.climate_react_test_ac_mode_low_temperature").attributes["options"]
+    low_state = hass.states.get("select.climate_react_test_ac_mode_low_temperature")
+    assert low_state is not None
+    options = low_state.attributes["options"]
     assert set(options) == {"heat", "fan_only", "off", "none"}
     # Modes that make no sense when cold are withheld, though supported.
     for nonsensical in ("cool", "dry", "heat_cool"):
@@ -39,7 +41,9 @@ async def test_high_band_offers_only_sensible_modes(hass: HomeAssistant, climate
     await setup_controller(hass, entry)
     await hass.async_block_till_done()
 
-    options = hass.states.get("select.climate_react_test_ac_mode_high_temperature").attributes["options"]
+    high_state = hass.states.get("select.climate_react_test_ac_mode_high_temperature")
+    assert high_state is not None
+    options = high_state.attributes["options"]
     assert set(options) == {"cool", "fan_only", "off", "none"}
     for nonsensical in ("heat", "dry", "heat_cool"):
         assert nonsensical not in options
@@ -56,7 +60,9 @@ async def test_allowlist_still_respects_hardware_capability(hass: HomeAssistant,
     await setup_controller(hass, entry)
     await hass.async_block_till_done()
 
-    options = hass.states.get("select.climate_react_test_ac_mode_low_temperature").attributes["options"]
+    low_state = hass.states.get("select.climate_react_test_ac_mode_low_temperature")
+    assert low_state is not None
+    options = low_state.attributes["options"]
     assert set(options) == {"heat", "off", "none"}
     assert "fan_only" not in options
 
@@ -72,11 +78,11 @@ async def test_heat_cannot_be_selected_for_the_high_band(hass: HomeAssistant, cl
 
     sel = "select.climate_react_test_ac_mode_high_temperature"
     try:
-        await hass.services.async_call(
-            "select", "select_option", {"entity_id": sel, "option": "heat"}, blocking=True
-        )
+        await hass.services.async_call("select", "select_option", {"entity_id": sel, "option": "heat"}, blocking=True)
     except ServiceValidationError:
         pass
     else:  # pragma: no cover
         raise AssertionError("heat was accepted for the high band")
-    assert hass.states.get(sel).state != "heat"
+    state = hass.states.get(sel)
+    assert state is not None
+    assert state.state != "heat"

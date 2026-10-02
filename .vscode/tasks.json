@@ -1,0 +1,63 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "sync",
+      "detail": "Install the locked dependency set",
+      "type": "shell",
+      "command": "uv sync --locked",
+      "problemMatcher": []
+    },
+    {
+      "label": "test",
+      "detail": "Run the test suite",
+      "type": "shell",
+      "command": "uv run pytest",
+      "group": { "kind": "test", "isDefault": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "lint",
+      "detail": "ruff check over the integration and tests",
+      "type": "shell",
+      "command": "uv run ruff check custom_components/climate_react tests",
+      "problemMatcher": []
+    },
+    {
+      "label": "format",
+      "detail": "ruff format in place (NOT black: ruff format is the configured formatter, and one formatter is easier to keep consistent than two)",
+      "type": "shell",
+      "command": "uv run ruff format custom_components/climate_react tests",
+      "problemMatcher": []
+    },
+    {
+      "label": "typecheck",
+      "detail": "mypy over the integration",
+      "type": "shell",
+      "command": "uv run mypy custom_components/climate_react",
+      "problemMatcher": []
+    },
+    {
+      "label": "typecheck: tests",
+      "detail": "mypy over tests (needs the namespace package flags)",
+      "type": "shell",
+      "command": "uv run mypy --namespace-packages --explicit-package-bases tests/",
+      "problemMatcher": []
+    },
+    {
+      "label": "check all",
+      "detail": "lint, both type checks, and the tests",
+      "dependsOrder": "sequence",
+      "dependsOn": ["lint", "typecheck", "typecheck: tests", "test"],
+      "group": "none",
+      "problemMatcher": []
+    },
+    {
+      "label": "validate workflows",
+      "detail": "Check every action reference and input in .github/workflows",
+      "type": "shell",
+      "command": "uv run python .github/scripts/validate_workflow_actions.py",
+      "problemMatcher": []
+    }
+  ]
+}

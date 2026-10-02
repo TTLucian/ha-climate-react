@@ -2,90 +2,160 @@ name: CI
 
 on:
   push:
-    branches: [ main, master ]
+    branches:
+      - main
   pull_request:
-    branches: [ main, master ]
+    # ready_for_review is load-bearing: without it, marking a draft PR ready
+    # fires no event, so the PR can reach main having never been checked as
+    # non-draft.
+    types: [opened, reopened, synchronize, edited, ready_for_review]
+  # Weekly dependency drift check (see .github/scripts/check_dependency_freshness.py)
+  schedule:
+    - cron: "23 6 * * 1"
+  workflow_dispatch:
+
+# Cancel superseded runs on the same ref to avoid wasting runner minutes.
+# Keyed per pull request where there is one, so a push to the branch and a
+# push to the PR do not cancel each other's runs.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # Never let a tool silently re-resolve dependencies: the lockfile is the
+  # single source of truth for what CI tests against.
+  UV_FROZEN: "1"
 
 jobs:
-  validate-json:
-    name: Validate JSON and Manifests
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Validate JSON Files
-        run: |
-          python3 - <<'PY'
-          import json, sys
-
-          files = [
-              'custom_components/climate_react/manifest.json',
-              'custom_components/climate_react/strings.json',
-              'custom_components/climate_react/translations/en.json'
-          ]
-
-          failed = False
-          for file_path in files:
-              try:
-                  with open(file_path, 'r', encoding='utf-8') as f:
-                      json.load(f)
-                  print(f"OK: {file_path}")
-              except Exception as e:
-                  print(f"FAILED: {file_path} - {e}", file=sys.stderr)
-                  failed = True
-
-          if failed:
-              sys.exit(1)
-          PY
-
   lint:
-    name: Lint & Format (Ruff)
+    name: Lint and type check
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up uv
-        uses: astral-sh/setup-uv@v5
+      - name: Checkout repository
+        uses: actions/checkout@v7
         with:
-          python-version: "3.14"
+          persist-credentials: false
 
-      # uvx dynamically fetches and runs ruff in an isolated sandbox
-      - name: Run Ruff Linter
-        run: uvx ruff check .
-
-      - name: Check Formatting with Ruff
-        run: uvx ruff format --check .
-
-  type-check:
-    name: Type Check (mypy)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up uv
-        uses: astral-sh/setup-uv@v5
+      - name: Install uv
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
-          python-version: "3.14"
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
 
-      - name: Run mypy
-        run: uvx mypy custom_components/climate_react
+      - name: Verify uv.lock matches pyproject.toml
+        run: uv lock --check
 
-  tests:
-    name: Run tests (pytest)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: uv sync --locked
 
-      - name: Set up uv
-        uses: astral-sh/setup-uv@v5
-        with:
-          python-version: "3.14"
+      # actionlint validates workflow syntax but cannot resolve action
+      # references, so a typo in a `uses:` or a `with:` key fails silently or
+      # only once the job is scheduled. This fetches each action's action.yml
+      # and checks the reference and inputs. Needs network access.
+      - name: Validate workflow action references and inputs
+        run: uv run --frozen python .github/scripts/validate_workflow_actions.py
 
-      - name: Install dependencies & run pytest
+      # Everything Python in the repository is checked, not just the component.
+      # tests/ and .github/scripts/ were invisible to CI while the editor checked
+      # them, so Pylance reported errors that no run ever caught.
+      #
+      # Formatting is enforced with ruff format, the successor to Black. Black
+      # is not used: ruff format is faster, already the configured formatter,
+      # and one tool is easier to keep consistent than two.
+      - name: Ruff - whole repository
+        run: uv run --frozen ruff check .
+
+      - name: Ruff format - whole repository
+        run: uv run --frozen ruff format --check .
+
+      # tests/ is a namespace package, so it needs the package-bases flags;
+      # without them mypy aborts with "Source file found twice under different
+      # module names" and checks nothing at all.
+      - name: Mypy - whole repository
+        run: >-
+          uv run --frozen mypy
+          --namespace-packages --explicit-package-bases
+          custom_components/climate_react tests/ .github/scripts/
+
+      # A lint step that silently rewrites tracked files would leave the
+      # checkout dirty and the next run would pass on formatted code that was
+      # never committed. Nothing here auto-fixes, so this should never fire;
+      # it is here to catch a step that starts doing so.
+      - name: Check for modified files
         run: |
-          if [ -d tests ]; then
-            uv sync --group dev
-            uv run pytest -q
-          else
-            echo "No tests directory found; skipping pytest"
+          if [ -n "$(git diff --name-only)" ] || [ -n "$(git diff --cached --name-only)" ]; then
+            echo "::error::Tracked files were modified by the checks. Run them locally and commit the result."
+            git --no-pager diff --stat
+            exit 1
           fi
+          echo "Working tree is clean."
+
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - name: Install dependencies
+        run: uv sync --locked
+
+      - name: Report resolved versions
+        run: |
+          uv run --frozen python --version
+          uv run --frozen python -c "from homeassistant.const import __version__ as v; print('homeassistant', v)"
+          uv run --frozen pytest --version
+
+      - name: Run tests
+        run: uv run --frozen pytest -q --junitxml=junit.xml
+
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: pytest-report
+          path: junit.xml
+          retention-days: 7
+
+  dependencies:
+    name: Dependency freshness
+    # Only meaningful on the weekly schedule / manual dispatch: on pushes and
+    # PRs the lockfile is authoritative and this would only add noise.
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - name: Report newer stable releases
+        # Exits non-zero when a newer stable Home Assistant is available, so
+        # the drift shows up as a red job instead of going unnoticed.
+        # `packaging` is supplied as an ephemeral overlay so the script does
+        # not need to become a declared dependency of the project.
+        run: uv run --frozen --with packaging python .github/scripts/check_dependency_freshness.py
+
+      - name: Summary
+        if: always()
+        run: echo "See the job log for Home Assistant / harness version drift."

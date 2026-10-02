@@ -409,7 +409,7 @@ class ClimateReactController:
                     return None
                 return float(value)
             return float(state.state)
-        except (ValueError, TypeError):
+        except ValueError, TypeError:
             return None
 
     @property
@@ -1084,9 +1084,7 @@ class ClimateReactController:
         # unit is unavailable — there is nothing to command, and the state
         # listener will not re-run this path when it returns.
         if self._is_entity_available() and not self._is_climate_off():
-            if not await self._async_safe_service_call(
-                "climate", "turn_off", {"entity_id": self.climate_entity}
-            ):
+            if not await self._async_safe_service_call("climate", "turn_off", {"entity_id": self.climate_entity}):
                 _LOGGER.warning(
                     "Failed to turn off climate entity %s on disable",
                     self.climate_entity,
@@ -1560,6 +1558,7 @@ class ClimateReactController:
                 and _matches(temp_low, climate_state.attributes.get("temperature"))
             )
         return True
+
     async def _async_set_climate(
         self,
         hvac_mode: str | None,

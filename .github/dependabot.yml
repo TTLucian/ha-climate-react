@@ -1,0 +1,19 @@
+version: 2
+
+updates:
+  # Actions are pinned by commit SHA (for example
+  # astral-sh/setup-uv@c18668ad... # v10.2.0). Dependabot understands the
+  # trailing version comment and will open a PR with both the new SHA and the
+  # updated comment, so the pins do not silently go stale.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    commit-message:
+      prefix: "ci"
+
+  # Python dependencies are managed by uv and recorded in uv.lock rather than
+  # a requirements file, so Dependabot cannot update them directly. CI has a
+  # scheduled freshness job instead:
+  # .github/workflows/ci.yml -> "Dependency freshness".

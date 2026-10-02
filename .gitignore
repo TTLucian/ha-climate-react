@@ -1,10 +1,28 @@
-.pytest_cache
-__pycache__/
-.coverage
-*.vscode*
+# .vscode/ is deliberately TRACKED. It used to be ignored (as *.vscode*),
+# so the editor config was local-only: when VS Code lost the cached
+# interpreter the settings could not restore it, and Pylance fell back to a
+# system python with no homeassistant installed, which surfaced as ~80 bogus
+# "could not be resolved" import errors.
+# Personal overrides that should stay local:
+.vscode/*.local.json
 .github/**/*instruction*
 *samples*
-*pyrightconfig*
-*log.log*
+# pyrightconfig.json is tracked on purpose: without an explicit pythonVersion
+# Pylance falls back to an older interpreter and reports bogus errors against
+# this codebase. Only the per-machine override stays ignored. This replaces an
+# earlier "*pyrightconfig*" pattern, which silently excluded the tracked file.
+pyrightconfig.local.json
+*quality_scale.yaml*
+log.txt
 *diag-sample.json*
+*log.log*
+*pycache*
+*.mypy_cache*
+*.pytest_cache*
+*.ruff_cache*
+.coverage
+.coverage.*
+htmlcov/
+junit.xml
+.venv
 *venv*
