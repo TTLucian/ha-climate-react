@@ -28,9 +28,7 @@ async def test_unit_finishing_its_cycle_in_dead_band(hass: HomeAssistant, climat
     band, the unit then stops itself because it reached the setpoint. That stop
     is the device doing its job, not the user intervening.
     """
-    entry = make_entry(
-        **{"min_temp_threshold": 22.0, "max_temp_threshold": 24.0, "temp_high_temp": 21.0}
-    )
+    entry = make_entry(**{"min_temp_threshold": 22.0, "max_temp_threshold": 24.0, "temp_high_temp": 21.0})
     climate(state="off", current_temperature=25.0)
     controller = await setup_controller(hass, entry)
     await controller.async_enable()

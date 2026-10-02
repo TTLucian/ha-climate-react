@@ -25,9 +25,7 @@ from tests.conftest import make_entry, setup_controller
 
 async def _fire_climate_change(hass: HomeAssistant, controller, event_type="state_changed") -> None:
     """Emit a climate state change event through the controller's listener."""
-    await controller._async_climate_state_changed(
-        _make_event(hass, controller, event_type)
-    )
+    await controller._async_climate_state_changed(_make_event(hass, controller, event_type))
 
 
 def _make_event(hass, controller, event_type):
@@ -191,6 +189,4 @@ async def test_logbook_targets_the_real_control_switch(hass: HomeAssistant, clim
     registry = er.async_get(hass)
     resolved = controller._get_switch_entity_id()
     assert resolved is not None
-    assert resolved == registry.async_get_entity_id(
-        "switch", DOMAIN, "climate_react_test_ac_control"
-    )
+    assert resolved == registry.async_get_entity_id("switch", DOMAIN, "climate_react_test_ac_control")

@@ -38,3 +38,6 @@ disable_error_code = ["misc"]  # Prevents HA class attribute assignment errors (
 asyncio_mode = "auto"
 testpaths = ["tests"]
 python_files = ["test_*.py"]
+# Put the repository root on sys.path so tests can import custom_components.
+# tests/ has no __init__.py, so pytest otherwise only adds tests/ itself.
+pythonpath = ["."]

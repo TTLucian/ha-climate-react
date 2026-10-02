@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import time
 from unittest.mock import patch
 
 from homeassistant.core import Event, HomeAssistant
@@ -79,9 +78,9 @@ async def test_min_run_time_blocks_switch_while_running(hass: HomeAssistant, cli
     controller = await setup_controller(hass, entry)
     await controller.async_enable()
     # Pretend a mode change just happened.
-    controller._last_mode_change_time = __import__("datetime").datetime.now(
-        __import__("datetime").UTC
-    ) - __import__("datetime").timedelta(minutes=1)
+    controller._last_mode_change_time = __import__("datetime").datetime.now(__import__("datetime").UTC) - __import__(
+        "datetime"
+    ).timedelta(minutes=1)
 
     with patch.object(controller, "_async_safe_service_call") as call:
         await controller._async_handle_temperature_threshold(25.0)
@@ -94,9 +93,9 @@ async def test_min_run_time_does_not_block_starting_an_off_unit(hass: HomeAssist
     climate(state="off", current_temperature=25.0)
     controller = await setup_controller(hass, entry)
     await controller.async_enable()
-    controller._last_mode_change_time = __import__("datetime").datetime.now(
-        __import__("datetime").UTC
-    ) - __import__("datetime").timedelta(seconds=10)
+    controller._last_mode_change_time = __import__("datetime").datetime.now(__import__("datetime").UTC) - __import__(
+        "datetime"
+    ).timedelta(seconds=10)
 
     with patch.object(controller, "_async_safe_service_call", return_value=True) as call:
         await controller._async_handle_temperature_threshold(25.0)
@@ -109,9 +108,9 @@ async def test_min_run_time_does_not_block_turning_off(hass: HomeAssistant, clim
     climate(state="cool", current_temperature=20.0)
     controller = await setup_controller(hass, entry)
     await controller.async_enable()
-    controller._last_mode_change_time = __import__("datetime").datetime.now(
-        __import__("datetime").UTC
-    ) - __import__("datetime").timedelta(seconds=10)
+    controller._last_mode_change_time = __import__("datetime").datetime.now(__import__("datetime").UTC) - __import__(
+        "datetime"
+    ).timedelta(seconds=10)
 
     with patch.object(controller, "_async_safe_service_call", return_value=True) as call:
         await controller._async_handle_temperature_threshold(20.0)
