@@ -1,13 +1,18 @@
 """Report when newer stable Home Assistant / test-harness releases are available.
 
-The uv.lock intentionally pins a pre-release of Home Assistant, because the
-newest pytest-homeassistant-custom-component release depends on that exact
-version.  That keeps CI deterministic but means CI can silently drift behind
-what users actually run.
+CI runs against uv.lock, so the versions under test are exactly what the
+lockfile says - which is not necessarily what users run, because new stable
+releases appear between lock refreshes and nobody is forced to take them.
 
 This script is run on a schedule. It compares the locked versions against the
 latest *stable* releases on PyPI and exits non-zero when an update is worth
 considering, so the drift is visible instead of hidden.
+
+Note this repository pins a *stable* Home Assistant, so the "lock is on a
+pre-release" branch below normally does not trigger. It is kept because the
+sibling ha-solar-ac-controller repository does pin a pre-release, and the
+comparison logic is shared. uv.lock may legitimately contain more than one
+homeassistant entry for different resolution markers; the highest is used.
 """
 
 from __future__ import annotations

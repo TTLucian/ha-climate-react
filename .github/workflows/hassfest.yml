@@ -5,15 +5,29 @@ on:
     branches:
       - main
   pull_request:
-    branches:
-      - main
+    types: [opened, reopened, synchronize, edited, ready_for_review]
+  schedule:
+    - cron: "23 6 * * *"
+
+concurrency:
+  group: hassfest-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
 
 jobs:
-  hassfest:
+  validate:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
+      # Pinned to a commit SHA rather than @master, for the same reason as
+      # hacs.yml: a branch ref is neither reviewable here nor updatable by
+      # Dependabot.
       - name: Hassfest validation
-        uses: home-assistant/actions/hassfest@master
+        uses: home-assistant/actions/hassfest@06749dd8c0b54f350bc69c8752456cee498808a3 # master

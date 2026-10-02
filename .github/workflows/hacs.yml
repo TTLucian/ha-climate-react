@@ -5,18 +5,35 @@ on:
     branches:
       - main
   pull_request:
-    branches:
-      - main
+    types: [opened, reopened, synchronize, edited, ready_for_review]
+  schedule:
+    - cron: "23 6 * * *"
+
+concurrency:
+  group: hacs-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
 
 jobs:
   hacs:
+    name: HACS Validation
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - name: HACS validation
-        uses: hacs/action@main
+        # Pinned to a commit SHA rather than @main. A branch ref means the
+        # upstream repository can change what executes here without any PR in
+        # this repo, and Dependabot cannot bump a branch ref - which is why the
+        # ref stays unpinned in the first place. A SHA is both reviewable and
+        # updatable by Dependabot.
+        uses: hacs/action@1ebf01c408f29afcb6406bd431bc98fd8cbb15aa # main
         with:
           category: integration
           ignore: brands
