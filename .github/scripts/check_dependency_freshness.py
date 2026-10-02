@@ -8,11 +8,16 @@ This script is run on a schedule. It compares the locked versions against the
 latest *stable* releases on PyPI and exits non-zero when an update is worth
 considering, so the drift is visible instead of hidden.
 
-Note this repository pins a *stable* Home Assistant, so the "lock is on a
-pre-release" branch below normally does not trigger. It is kept because the
-sibling ha-solar-ac-controller repository does pin a pre-release, and the
-comparison logic is shared. uv.lock may legitimately contain more than one
-homeassistant entry for different resolution markers; the highest is used.
+This file is identical across the repositories that share it, so it deliberately
+avoids describing any one repository's current pinning policy - that changes,
+and a docstring asserting it silently becomes false. Both policies are handled:
+a lock sitting on a pre-release is reported as a note rather than a failure,
+because some repositories pin one deliberately to stay forward-compatible
+while others stay on the latest stable. A newer harness that would move the
+lock onto a pre-release is likewise not drift, since the harness pins Home
+Assistant exactly and there is one harness release per Home Assistant release.
+uv.lock may legitimately contain more than one homeassistant entry for
+different resolution markers; the highest is used.
 """
 
 from __future__ import annotations
@@ -63,7 +68,7 @@ def harness_pinned_homeassistant(harness: str) -> str | None:
         return None
 
     # json.load returns Any; annotate so mypy can type the loop under
-    # warn_return_any, which this repository enables and the sibling does not.
+    # warn_return_any, which some of the repositories sharing this file enable.
     info: dict[str, Any] = data.get("info") or {}
     requirements: list[str] = info.get("requires_dist") or []
     for requirement in requirements:
