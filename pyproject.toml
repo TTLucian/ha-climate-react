@@ -12,6 +12,9 @@ dependencies = []
 [dependency-groups]
 dev = [
     "ruff>=0.16.0",
+    # Ships the shellcheck binary inside the venv, so the workflow linter
+    # gets a pinned shellcheck without a system install or Docker.
+    "shellcheck-py>=0.11.0",
     "mypy>=2.3.0",
     "pytest>=9.0.0",
     "pytest-homeassistant-custom-component",
@@ -26,7 +29,7 @@ target-version = "py314"
 exclude = [".venv", "__pycache__", ".mypy_cache", ".pytest_cache"]
 
 [tool.ruff.lint]
-select = ["E", "F", "UP"]
+select = ["E", "F", "UP", "I"]
 ignore = [
     "E501",  # Line too long
 ]

@@ -2,14 +2,8 @@
 
 ## Repository
 
-- Upstream: `TTLucian/ha-climate-react`
-- All PRs target upstream `main`
-- Component path: `custom_components/climate_react/` (underscore, not
-  `climate-react`)
-- Platform files: `__init__.py`, `climate_react.py` (the climate entity),
-  `config_flow.py`, `const.py`, `diagnostics.py`, plus the `number.py`,
-  `select.py` and `switch.py` platforms and a `brand/` directory.
-- This integration registers **no services**.
+- Upstream: ``TTLucian/ha-climate-react``
+- Component path: ``custom_components/climate_react/`` (underscore, not the dashed form)
 
 ## Branching
 
@@ -33,37 +27,52 @@
 lockfile is exactly what gets tested.
 
 ```bash
-uv sync --locked          # install; there is no "test" group, "dev" is default
-uv run ruff check .
+uv sync --locked          # install
+uv run ruff check .       # whole repository, not just the component
 uv run ruff format --check .
 uv run mypy --namespace-packages --explicit-package-bases \
-  custom_components/climate_react tests/ .github/scripts/
+  $(for d in custom_components tests scripts .github/scripts; do [ -d "$d" ] && printf '%s ' "$d"; done)
 uv run pytest
 ```
 
-- `uv sync --group test` **fails** here - the group is named `dev`.
 - `mypy` reads `pyproject.toml`. There is no `mypy.ini`; the two used to coexist
   and `mypy.ini` silently won, leaving the `pyproject.toml` settings dead.
 - Never pass `--follow-imports=skip` to mypy. It reports false
   `untyped-decorator` errors on `@pytest.mark.asyncio` because it cannot see
   pytest's own types. The flags above are the ones that work.
-- Do not use **black**. `ruff format` is the configured formatter; one
-  formatter is easier to keep consistent than two. (An earlier note in this
-  file family claimed black corrupts `except (A, B):`. That is wrong on
-  Python 3.14 - `except A, B:` parses as a tuple and is valid.)
+- Do not use **black**. `ruff format` is the configured formatter, and one
+  formatter is easier to keep consistent than two.
+  - An earlier version of this file claimed black "corrupts
+    `except (A, B):` into `except A, B:`, which is a `SyntaxError`". That is
+    **wrong**. `except A, B:` is PEP 758, valid on Python 3.14, and parses as a
+    tuple with an AST identical to `except (A, B):`. This repository uses it
+    deliberately.
 
 ## Testing
 
-- Tests import the integration from the repository root. `tests/` has no
-  `__init__.py`, so pytest's rootdir insertion adds only `tests/` itself.
-  The fix is `pythonpath = ["."]` in `[tool.pytest.ini_options]` - do **not**
-  replace it with a `sys.path` hack in `conftest.py`, which would put imports
-  after code and trip ruff's `E402`.
+- There is **no coverage gate**: measured coverage is around 70%. Do not quote a coverage floor that does not exist, and do not add `--cov-fail-under` - a gate that fails every run teaches people to ignore it. `pytest-cov` is already in the lockfile if coverage needs measuring.
+
 - Fix test failures before pushing - no PRs with known failing tests
 - CI runs `pytest -q --junitxml=junit.xml` and uploads the report as an artifact
-- There is **no coverage gate**. Do not add `--cov-fail-under`: a gate that
-  fails every run teaches people to ignore it. `pytest-cov` is already in the
-  lockfile if coverage needs measuring.
+- Do not add `--cov-fail-under` on the command line. The floor lives in
+  `pyproject.toml` under `[tool.coverage.report]` so that CI, the pre-commit
+  hook and a bare local run all enforce the same number. Spelling it out in
+  several places is how they ended up disagreeing.
+
+## Drift guards - run these, do not work around them
+
+`tests/test_repo_consistency.py` fails when configuration that must agree stops
+agreeing. It is the reason this repository is not quietly drifting:
+
+- pre-commit hook revisions must equal the versions `uv.lock` resolves.
+  **Dependabot does not edit `.pre-commit-config.yaml`**, so re-check the revs
+  after merging any of its "uv" pull requests.
+- the pre-commit mypy scope must cover every directory CI type-checks.
+- CI must run ruff over the whole repository.
+- the locked Home Assistant must not be a pre-release.
+
+If one of these fires, fix the configuration it is pointing at. Do not delete
+the test.
 
 ## Workflows
 
@@ -74,28 +83,33 @@ Two guards exist because a bad workflow reference fails *silently*:
   the action does not declare. GitHub **ignores unknown `with:` keys**, so a
   typo there looks like a passing job.
 - `.github/workflows/actionlint.yml` - syntax and expression checking, including
-  shellcheck rules, via the `rhysd/actionlint` container.
+  shellcheck rules, via `run_actionlint.py`. No Docker: both tools are
+  pinned ordinary dependencies so the check is available to everyone.
 
-Both have caught real bugs here. When adding a workflow step, check the action's
-real input names - do not copy them from `actions/setup-python` onto a different
-action.
+They are not redundant: one checks that the workflow parses, the other checks
+that what it references exists.
+
+When adding a workflow step, check the action's real input names - do not copy
+them from `actions/setup-python` onto a different action.
 
 ## Pre-commit (optional)
 
-`.pre-commit-config.yaml` mirrors CI: ruff, ruff-format, mypy and actionlint on
+`.pre-commit-config.yaml` mirrors CI: ruff, ruff-format, mypy and workflow lint on
 commit, `uv lock --check` when the lockfile or `pyproject.toml` changes, and
-pytest on pre-push. Keep the pinned `rev`s equal to the tool versions in
-`pyproject.toml`/`uv.lock`, and the `files:` scope equal to what CI checks - a
-hook that checks less than CI reads as a passing check while checking nothing.
+pytest on pre-push. Its `files:` scope is expressed as directories rather than
+by the integration name, so this file is byte-identical across repositories.
 
-The actionlint hook is `actionlint-docker`, pinned to the same image CI uses. It
-needs Docker, and for a reason: plain actionlint silently skips every shellcheck
-rule when shellcheck is absent locally, which is how unquoted `$GITHUB_OUTPUT`
-redirections reach CI.
+The workflow-lint hook runs `.github/scripts/run_actionlint.py`, the same script
+CI runs, so a local run and a CI run check identically. Both tools are pinned:
+shellcheck ships inside the venv via `shellcheck-py`, and the script fetches
+actionlint at a fixed version.
 
-The mypy hook needs `--namespace-packages --explicit-package-bases`. Without
-them it fails outright with "Source file found twice under different module
-names", because it hands mypy individual file paths.
+**Do not run a bare `actionlint`.** Without shellcheck on PATH it does not warn
+and does not fail - it checks less and exits 0. That silent degradation is how
+an SC2086 (an unquoted variable in the mypy step) reached all three repositories
+at once, because a local run looked clean while the rule that would have caught
+it never executed. Use the script, which fails loudly when either tool is
+missing.
 
 ```bash
 uv sync --locked && uv run pre-commit install
@@ -115,9 +129,9 @@ machine doing the checkout, and flipping one turns a one-line change into a
 whole-file diff.
 
 If you inherit a file with CRLF, `git add --renormalize .` fixes it. That is
-the correct use of the command - it is only wrong when applied to files that
-are already correct, which rewrites them for no reason. Never override
-`core.autocrlf` for a single `git add` to force the opposite.
+the correct use of the command - it is only wrong when applied to files that are
+already correct. Never override `core.autocrlf` for a single `git add` to force
+the opposite.
 
 ## JSON files - edit, never re-serialize
 
@@ -130,61 +144,30 @@ Edit the specific line with the editor tool or a targeted `sed`. If a bulk edit
 is genuinely needed, verify with `git diff --stat` that the change is
 proportional - check the stat *before* committing, not after.
 
-## Translations
-
-- `custom_components/climate_react/translations/en.json` is the only
-  translation file in this repository, and it is the source of truth.
-- New UI strings go in `strings.json` **and** `translations/en.json`. Both are
-  required; a key present in only one shows up untranslated in the UI.
-- There is no translation script here. Do not add one by copying it from
-  another repository.
-
-## Releases
-
-- A release needs `release_notes/RELEASE_NOTES_vX.Y.Z.md`; there is no
-  `release_notes/` directory yet, so create it with the first one.
-- Prerelease versions (containing `-`) are skipped by the workflow and
-  published by hand via the API.
-- Bump `manifest.json` by editing the one `version` line, then tag only after
-  the release merge lands on `main`.
-- The drafter attaches `climate_react.zip` and updates an existing draft rather
-  than skipping it.
-
 ## Home Assistant version pinning
 
-`uv.lock` pins Home Assistant to a **stable** release (`2026.9.4`), which is what
-most users run. Pre-releases are never pinned deliberately here. The policy is
-per-repository, so read `uv.lock` rather than assuming a shared value.
+`uv.lock` pins Home Assistant to a **stable** release, which is what most users
+run. Pre-releases are never pinned deliberately here.
 
-You do not choose the Home Assistant version directly. The test harness pins it
-with `==`, and there is one harness release per Home Assistant release:
+You do not choose the Home Assistant version directly. In repositories that use
+`pytest-homeassistant-custom-component`, that harness pins Home Assistant with
+`==`, one harness release per Home Assistant release, so upgrading the harness
+is an upgrade of Home Assistant in disguise - and the newest harness often pins a
+*pre-release*. That is the trap that
+`.github/scripts/check_dependency_freshness.py` exists to make visible.
 
-```
-0.13.354 -> 2026.8.0     0.13.363 -> 2026.9.0    0.13.367 -> 2026.9.4
-0.13.358 -> 2026.9.0b0   0.13.365 -> 2026.9.2    0.13.368 -> 2026.10.0b0
-```
+`requires-python` must stay aligned with what the pinned Home Assistant
+requires. A looser bound makes uv keep a second, much older homeassistant entry
+in the lockfile for unsupported interpreter markers, which silently pins CI to a
+version nobody runs.
 
-So to move Home Assistant you move the harness, and the newest harness is not
-always what you want - `0.13.368` pins a **pre-release**, so taking it would
-move CI off stable. To land on a specific stable Home Assistant, pin the harness
-that ships it:
+CI derives the Python version from the locked Home Assistant rather than a
+hard-coded number, so it follows Dependabot automatically. `.python-version`
+covers local development; the two agree because both track the lock.
 
-```bash
-uv lock --upgrade-package 'pytest-homeassistant-custom-component==0.13.367'
-```
+``.github/dependabot.yml` opens a weekly pull request for the `uv` ecosystem, so a newer stable release arrives as a reviewable diff rather than going stale unnoticed. Updates are split into groups (`runtime`, `framework`, `tooling`) because a single group puts a risky bump in the same PR as safe ones, and one blocked update stalls everything behind it. A 7-day cooldown is set because Home Assistant and its test harness pin each other exactly, so a build created the moment something publishes routinely resolves to a pair that will not install together.
 
-`requires-python` must stay `>=3.14.2,<3.15`. A looser bound makes uv keep a
-second, much older homeassistant entry in the lockfile for 3.14.0/3.14.1
-markers, which silently pins CI to a version nobody runs.
-
-Home Assistant pins `uv` itself, so the `uv` entry in `uv.lock` tracks whatever
-the pinned Home Assistant requires. The project's own uv is the
-`astral-sh/setup-uv` action in the workflows, which Dependabot keeps current.
-
-`.github/dependabot.yml` opens a weekly PR for the `uv` ecosystem, so a newer
-stable release arrives as a reviewable diff instead of silently going stale.
-The weekly `Dependency freshness` job is the backstop for when such a PR is
-not opened.
+The weekly `Dependency freshness` job (`.github/scripts/check_dependency_freshness.py`) is the backstop for when such a PR is never opened or never merged. It runs on schedule and manual dispatch only, not on every push.`
 
 ## Files to never commit
 

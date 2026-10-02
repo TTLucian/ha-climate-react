@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-
 from homeassistant.core import HomeAssistant
 
 from tests.conftest import make_entry, setup_controller
