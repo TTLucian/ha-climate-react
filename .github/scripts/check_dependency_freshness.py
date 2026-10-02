@@ -22,6 +22,8 @@ import re
 import sys
 import urllib.error
 import urllib.request
+from typing import Any
+
 from packaging.version import InvalidVersion, Version
 
 PYPI = "https://pypi.org/pypi/{package}/json"
@@ -60,7 +62,11 @@ def harness_pinned_homeassistant(harness: str) -> str | None:
     except urllib.error.URLError, urllib.error.HTTPError, TimeoutError:
         return None
 
-    for requirement in data.get("info", {}).get("requires_dist") or []:
+    # json.load returns Any; annotate so mypy can type the loop under
+    # warn_return_any, which this repository enables and the sibling does not.
+    info: dict[str, Any] = data.get("info") or {}
+    requirements: list[str] = info.get("requires_dist") or []
+    for requirement in requirements:
         name, _, spec = requirement.partition("==")
         if name.strip().lower() == "homeassistant" and spec:
             return spec.strip().split(";")[0].strip()
