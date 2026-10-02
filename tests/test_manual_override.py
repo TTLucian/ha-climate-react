@@ -56,7 +56,9 @@ async def test_manual_change_in_dead_band_disables_automation(hass: HomeAssistan
 
     assert controller.enabled is False
     # The control switch follows the automation.
-    assert hass.states.get("switch.climate_react_test_ac_control").state == "off"
+    control_state = hass.states.get("switch.climate_react_test_ac_control")
+    assert control_state is not None
+    assert control_state.state == "off"
 
 
 async def test_manual_change_with_mode_off_band_disables_automation(hass: HomeAssistant, climate) -> None:

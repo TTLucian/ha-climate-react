@@ -1,0 +1,34 @@
+name: Workflow lint
+
+# actionlint validates workflow syntax offline, but nothing here checked that
+# the workflows were even valid YAML for Actions: a bad action ref or a
+# malformed expression was only ever discovered when the workflow failed to
+# run. That is especially costly because a silently-broken job reports green.
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    types: [opened, reopened, synchronize, edited, ready_for_review]
+
+concurrency:
+  group: actionlint-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  actionlint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      # Run from a pinned container image rather than downloading a binary,
+      # so the linter version is fixed by the digest-visible tag above.
+      - name: Run actionlint
+        uses: docker://rhysd/actionlint:1.7.12

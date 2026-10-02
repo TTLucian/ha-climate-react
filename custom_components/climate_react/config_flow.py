@@ -7,6 +7,7 @@ from typing import Any, TypedDict
 
 import voluptuous as vol
 from homeassistant import config_entries
+from homeassistant.config_entries import ConfigFlowResult
 from homeassistant.core import callback
 from homeassistant.helpers import selector
 
@@ -370,7 +371,7 @@ class ClimateReactConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         return self.async_show_form(step_id="light_options", data_schema=vol.Schema(schema_dict), errors=errors)
 
-    async def _async_create_entry_with_defaults(self, step1_data: UserStepData) -> config_entries.FlowResult:
+    async def _async_create_entry_with_defaults(self, step1_data: UserStepData) -> ConfigFlowResult:
         """Create entry with default values when no optional features are enabled."""
         climate_entity = step1_data["climate_entity"]
         await self.async_set_unique_id(climate_entity)
