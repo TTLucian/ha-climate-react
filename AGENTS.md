@@ -112,9 +112,9 @@ Most files are LF, but these six are CRLF:
 - `custom_components/climate_react/number.py`
 - `custom_components/climate_react/select.py`
 
-`tests/` and `manifest.json`/`strings.json`/`translations/en.json` are LF here,
-unlike the sibling `ha-solar-ac-controller` repository. Do not assume one
-convention. When scripting a bulk edit, preserve each file's existing endings
+`tests/` and `manifest.json`/`strings.json`/`translations/en.json` are LF here.
+Repositories in this family have used CRLF, so do not assume one convention.
+When scripting a bulk edit, preserve each file's existing endings
 and check `git diff --stat` before committing - a one-line change that flips
 endings becomes a whole-file diff.
 
@@ -152,8 +152,9 @@ proportional - check the stat *before* committing, not after.
 ## Home Assistant version pinning
 
 `uv.lock` pins Home Assistant to a **stable** release (`2026.9.4`), which is what
-most users run. The sibling `ha-solar-ac-controller` repository pins a
-pre-release instead.
+most users run. That is a deliberate, per-repository choice: repositories
+sharing this tooling lock different versions, so read `uv.lock` rather than
+assuming a shared value.
 
 You do not choose the Home Assistant version directly. The test harness pins it
 with `==`, and there is one harness release per Home Assistant release:
