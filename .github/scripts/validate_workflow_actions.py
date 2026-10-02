@@ -18,8 +18,8 @@ import re
 import sys
 import urllib.error
 import urllib.request
-from pathlib import Path
 from collections.abc import Iterator
+from pathlib import Path
 from typing import Any
 
 import yaml
@@ -113,7 +113,7 @@ def main() -> int:
 
         for step in iter_steps(workflow):
             uses: str = step["uses"].strip()
-            if uses.startswith("./") or uses.startswith("docker://"):
+            if uses.startswith(("./", "docker://")):
                 continue
 
             if "@" not in uses:

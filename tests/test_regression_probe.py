@@ -4,8 +4,7 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
-from homeassistant.core import HomeAssistant
-from homeassistant.core import Event
+from homeassistant.core import Event, HomeAssistant
 
 from tests.conftest import make_entry, setup_controller
 
