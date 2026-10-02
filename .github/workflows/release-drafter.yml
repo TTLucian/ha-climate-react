@@ -4,46 +4,99 @@ on:
   push:
     branches:
       - main
+  pull_request:
+    types: [opened, reopened, synchronize, edited, ready_for_review]
+
+# Deliberately NOT cancel-in-progress. This workflow publishes releases, and
+# cancelling one midway could leave a release created without its notes or
+# without its asset. Queued runs wait their turn instead.
+concurrency:
+  group: release-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   update_release_draft:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: write
+      pull-requests: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          # Full history so gh can resolve tags and prior releases.
+          fetch-depth: 0
 
       - name: Get version from manifest.json
         id: get_version
         run: |
           VERSION=$(jq -r '.version' custom_components/climate_react/manifest.json)
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "Version found: $VERSION"
 
-      - name: Create draft release
+      - name: Read release notes
+        id: release_notes
+        env:
+          VERSION: ${{ steps.get_version.outputs.version }}
+        run: |
+          RELEASE_FILE="release_notes/RELEASE_NOTES_v${VERSION}.md"
+          # A prerelease version (1.2.0-beta1) has no matching notes file and
+          # is published by hand. Detect that explicitly so the skip is
+          # explained rather than looking like the workflow broke.
+          if [[ "$VERSION" == *-* ]]; then
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+            echo "Prerelease version ${VERSION} - published manually, nothing to do here."
+            exit 0
+          fi
+          echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          if [ -f "$RELEASE_FILE" ]; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+            echo "title=Version ${VERSION}" >> "$GITHUB_OUTPUT"
+          else
+            echo "found=false" >> "$GITHUB_OUTPUT"
+            # Without this the run ends quietly having published nothing. A
+            # stable version with no notes file is always a mistake, so raise
+            # it in the run summary where it is actually read.
+            echo "::warning title=No release notes::Version ${VERSION} is stable but ${RELEASE_FILE} does not exist, so no release was created."
+            echo "::notice title=Missing release notes::Create ${RELEASE_FILE} before tagging ${VERSION}."
+          fi
+
+      - name: Create climate_react.zip asset
+        if: github.event_name == 'push' && steps.release_notes.outputs.prerelease != 'true'
+        run: |
+          mkdir -p dist
+          zip -r dist/climate_react.zip custom_components
+
+      - name: Create or Update Release
+        if: steps.release_notes.outputs.found == 'true' && github.event_name == 'push'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ steps.get_version.outputs.version }}
+          TITLE: ${{ steps.release_notes.outputs.title }}
+          NOTES_PATH: release_notes/RELEASE_NOTES_v${{ steps.get_version.outputs.version }}.md
         run: |
-          # Never touch an already-published release
-          EXISTING_PUBLISHED=$(gh release list --json tagName,isDraft \
-            --jq ".[] | select(.tagName == \"v${VERSION}\" and .isDraft == false) | .tagName")
-          if [ -n "$EXISTING_PUBLISHED" ]; then
-            echo "Published release v${VERSION} already exists. Skipping."
+          TAG="v${VERSION}"
+
+          # Never touch an already-published release.
+          if gh release view "$TAG" --json isDraft | grep -q '"isDraft":false'; then
+            echo "Published release $TAG already exists. Skipping."
             exit 0
           fi
 
-          # Skip if a draft already exists
-          EXISTING_DRAFT=$(gh release list --json tagName,isDraft \
-            --jq ".[] | select(.tagName == \"v${VERSION}\" and .isDraft == true) | .tagName")
-          if [ -n "$EXISTING_DRAFT" ]; then
-            echo "Draft release v${VERSION} already exists. Nothing to do."
-            exit 0
+          if gh release view "$TAG" --json isDraft | grep -q '"isDraft":true'; then
+            echo "Updating existing draft release $TAG"
+            gh release edit "$TAG" \
+              --title "$TITLE" \
+              --notes-file "$NOTES_PATH"
+            # Re-upload the asset, clobbering any earlier copy.
+            gh release upload "$TAG" dist/climate_react.zip --clobber
+          else
+            echo "Creating new draft release $TAG"
+            gh release create "$TAG" \
+              dist/climate_react.zip \
+              --draft \
+              --title "$TITLE" \
+              --notes-file "$NOTES_PATH"
           fi
-
-          echo "Creating draft release v${VERSION}"
-          gh release create "v${VERSION}" \
-            --draft \
-            --title "v${VERSION}" \
-            --notes ""
