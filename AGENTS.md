@@ -101,22 +101,23 @@ names", because it hands mypy individual file paths.
 uv sync --locked && uv run pre-commit install
 ```
 
-## Line endings - this repository is MIXED
+## Line endings - everything is LF
 
-Most files are LF, but these six are CRLF:
+Every tracked file uses LF, enforced by `.gitattributes`:
 
-- `.github/ISSUE_TEMPLATE/bug_report.md`
-- `.github/workflows/release-drafter.yml`
-- `custom_components/climate_react/const.py`
-- `custom_components/climate_react/diagnostics.py`
-- `custom_components/climate_react/number.py`
-- `custom_components/climate_react/select.py`
+```
+* text=auto eol=lf
+```
 
-`tests/` and `manifest.json`/`strings.json`/`translations/en.json` are LF here.
-Repositories in this family have used CRLF, so do not assume one convention.
-When scripting a bulk edit, preserve each file's existing endings
-and check `git diff --stat` before committing - a one-line change that flips
-endings becomes a whole-file diff.
+`text=auto` lets git detect binaries, so images and archives are left alone.
+**Do not add exceptions.** A single CRLF file makes line endings depend on the
+machine doing the checkout, and flipping one turns a one-line change into a
+whole-file diff.
+
+If you inherit a file with CRLF, `git add --renormalize .` fixes it. That is
+the correct use of the command - it is only wrong when applied to files that
+are already correct, which rewrites them for no reason. Never override
+`core.autocrlf` for a single `git add` to force the opposite.
 
 ## JSON files - edit, never re-serialize
 
