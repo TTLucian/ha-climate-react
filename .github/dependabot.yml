@@ -4,7 +4,8 @@ updates:
   # Actions are pinned by commit SHA (for example
   # astral-sh/setup-uv@c18668ad... # v10.2.0). Dependabot understands the
   # trailing version comment and will open a PR with both the new SHA and the
-  # updated comment, so the pins do not silently go stale.
+  # updated comment, so the pins do not silently go stale. This is what keeps
+  # the CI toolchain itself current.
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
@@ -13,7 +14,20 @@ updates:
     commit-message:
       prefix: "ci"
 
-  # Python dependencies are managed by uv and recorded in uv.lock rather than
-  # a requirements file, so Dependabot cannot update them directly. CI has a
-  # scheduled freshness job instead:
-  # .github/workflows/ci.yml -> "Dependency freshness".
+  # Python dependencies, including Home Assistant itself, are managed by uv and
+  # recorded in uv.lock. Dependabot understands uv.lock, so it opens a weekly PR
+  # when a newer release is available - no manual `uv lock --upgrade` needed.
+  #
+  # The cooldown is deliberate. Home Assistant and its test harness pin each
+  # other exactly, so a PR built the moment something is published routinely
+  # resolves to a pair that is not installable together yet. Waiting a week
+  # means the harness release that matches the new stable has usually landed.
+  - package-ecosystem: "uv"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    cooldown:
+      default-days: 7
+    commit-message:
+      prefix: "deps"

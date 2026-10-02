@@ -152,9 +152,8 @@ proportional - check the stat *before* committing, not after.
 ## Home Assistant version pinning
 
 `uv.lock` pins Home Assistant to a **stable** release (`2026.9.4`), which is what
-most users run. That is a deliberate, per-repository choice: repositories
-sharing this tooling lock different versions, so read `uv.lock` rather than
-assuming a shared value.
+most users run. Pre-releases are never pinned deliberately here. The policy is
+per-repository, so read `uv.lock` rather than assuming a shared value.
 
 You do not choose the Home Assistant version directly. The test harness pins it
 with `==`, and there is one harness release per Home Assistant release:
@@ -165,8 +164,9 @@ with `==`, and there is one harness release per Home Assistant release:
 ```
 
 So to move Home Assistant you move the harness, and the newest harness is not
-always what you want - `0.13.368` pins a **pre-release**. To land on a specific
-stable Home Assistant, pin the harness that ships it:
+always what you want - `0.13.368` pins a **pre-release**, so taking it would
+move CI off stable. To land on a specific stable Home Assistant, pin the harness
+that ships it:
 
 ```bash
 uv lock --upgrade-package 'pytest-homeassistant-custom-component==0.13.367'
@@ -176,12 +176,14 @@ uv lock --upgrade-package 'pytest-homeassistant-custom-component==0.13.367'
 second, much older homeassistant entry in the lockfile for 3.14.0/3.14.1
 markers, which silently pins CI to a version nobody runs.
 
-CI tests what the lockfile says, not what users run, so the lock is refreshed
-deliberately rather than on every release. The weekly `Dependency freshness`
-job (`.github/scripts/check_dependency_freshness.py`) compares the locked
-`homeassistant` against the newest stable, and only calls the harness stale
-when upgrading it would stay on stable Home Assistant. It runs on schedule and
-manual dispatch only, not on every push.
+Home Assistant pins `uv` itself, so the `uv` entry in `uv.lock` tracks whatever
+the pinned Home Assistant requires. The project's own uv is the
+`astral-sh/setup-uv` action in the workflows, which Dependabot keeps current.
+
+`.github/dependabot.yml` opens a weekly PR for the `uv` ecosystem, so a newer
+stable release arrives as a reviewable diff instead of silently going stale.
+The weekly `Dependency freshness` job is the backstop for when such a PR is
+not opened.
 
 ## Files to never commit
 
