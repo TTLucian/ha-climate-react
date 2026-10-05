@@ -7,8 +7,8 @@ from collections.abc import Callable
 
 from homeassistant.components.number import NumberEntity, NumberMode
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import UnitOfTemperature
-from homeassistant.core import HomeAssistant
+from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN, UnitOfTemperature
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .climate_react import ClimateReactController
@@ -61,17 +61,61 @@ class ClimateReactBaseNumber(NumberEntity):
     _attr_mode = NumberMode.BOX
     _config_key: str
     _default_value: float = 0.0
+    # Set on temperature-valued entities so their allowed range follows the
+    # setpoint limits the climate entity advertises.
+    _uses_climate_range: bool = False
+    # Fallback bounds, used only while the unit reports no usable range.
+    _fallback_min_value: float = 0.0
+    _fallback_max_value: float = 40.0
 
     def __init__(self, controller: ClimateReactController, entry: ConfigEntry) -> None:
         """Initialize the number entity."""
         self._controller = controller
         self._entry = entry
+        self._remove_bounds_listener: Callable[[], None] | None = None
         self._attr_device_info = {
             "identifiers": {(DOMAIN, entry.entry_id)},
             "name": controller.get_device_name(),
             "manufacturer": "TTLucian",
             "model": "Climate Automation Controller",
         }
+
+    def _climate_temperature_bounds(self) -> tuple[float, float]:
+        """Return the setpoint range the climate entity advertises.
+
+        A unit cannot cool below its own ``min_temp`` or heat above its
+        ``max_temp``, so a threshold or target outside that range is one the
+        hardware cannot honour. Falls back to the entity defaults while the
+        unit is offline or reports nothing usable, so the number always has
+        bounds.
+        """
+        state = self.hass.states.get(self._controller.climate_entity)
+        low = high = None
+        if state is not None and state.state not in (STATE_UNAVAILABLE, STATE_UNKNOWN):
+            raw_low = state.attributes.get("min_temp")
+            raw_high = state.attributes.get("max_temp")
+            if isinstance(raw_low, (int, float)):
+                low = float(raw_low)
+            if isinstance(raw_high, (int, float)):
+                high = float(raw_high)
+
+        if low is None or high is None or low >= high:
+            return (self._fallback_min_value, self._fallback_max_value)
+        return (low, high)
+
+    @property
+    def native_min_value(self) -> float:  # type: ignore[override]
+        """Lower bound; from the climate entity when this entity is a temperature."""
+        if self._uses_climate_range:
+            return self._climate_temperature_bounds()[0]
+        return self._attr_native_min_value
+
+    @property
+    def native_max_value(self) -> float:  # type: ignore[override]
+        """Upper bound; from the climate entity when this entity is a temperature."""
+        if self._uses_climate_range:
+            return self._climate_temperature_bounds()[1]
+        return self._attr_native_max_value
 
     @property
     def native_value(self) -> float | None:
@@ -80,6 +124,25 @@ class ClimateReactBaseNumber(NumberEntity):
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
+        if self._uses_climate_range:
+            # The bounds are read live, so refresh when the unit reports a
+            # range it did not report at startup.
+            self._remove_bounds_listener = self._controller.register_state_listener(
+                [self._controller.climate_entity],
+                self._async_climate_bounds_changed,
+            )
+        self.async_write_ha_state()
+
+    async def async_will_remove_from_hass(self) -> None:
+        """Unsubscribe from climate updates."""
+        if self._remove_bounds_listener:
+            self._remove_bounds_listener()
+            self._remove_bounds_listener = None
+        await super().async_will_remove_from_hass()
+
+    @callback
+    def _async_climate_bounds_changed(self, event) -> None:
+        """Refresh when the unit reports a different setpoint range."""
         self.async_write_ha_state()
 
     async def async_set_native_value(self, value: float) -> None:
@@ -94,8 +157,7 @@ class ClimateReactMinTempNumber(ClimateReactBaseNumber):
     _attr_name = "Minimum Temperature"
     _attr_icon = "mdi:thermometer-low"
     _attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
-    _attr_native_min_value = 0
-    _attr_native_max_value = 40
+    _uses_climate_range = True
     _attr_native_step = 0.1
     _config_key = CONF_MIN_TEMP
     _default_value = DEFAULT_MIN_TEMP
@@ -113,8 +175,7 @@ class ClimateReactMaxTempNumber(ClimateReactBaseNumber):
     _attr_name = "Maximum Temperature"
     _attr_icon = "mdi:thermometer-high"
     _attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
-    _attr_native_min_value = 0
-    _attr_native_max_value = 40
+    _uses_climate_range = True
     _attr_native_step = 0.1
     _config_key = CONF_MAX_TEMP
     _default_value = DEFAULT_MAX_TEMP
@@ -132,8 +193,7 @@ class ClimateReactTempLowTempNumber(ClimateReactBaseNumber):
     _attr_name = "Target Temperature Low"
     _attr_icon = "mdi:thermometer"
     _attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
-    _attr_native_min_value = 0
-    _attr_native_max_value = 40
+    _uses_climate_range = True
     _attr_native_step = 0.5
     _config_key = CONF_TEMP_LOW_TEMP
     _default_value = DEFAULT_TEMP_LOW_TEMP
@@ -151,8 +211,7 @@ class ClimateReactTempHighTempNumber(ClimateReactBaseNumber):
     _attr_name = "Target Temperature High"
     _attr_icon = "mdi:thermometer"
     _attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
-    _attr_native_min_value = 0
-    _attr_native_max_value = 40
+    _uses_climate_range = True
     _attr_native_step = 0.5
     _config_key = CONF_TEMP_HIGH_TEMP
     _default_value = DEFAULT_TEMP_HIGH_TEMP

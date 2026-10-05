@@ -102,6 +102,10 @@ All configuration happens through Home Assistant UI:
 
 - **Switch**: Climate React enable/disable and optional light control switch
 - **Numbers**: Temperature thresholds, target temperatures, delays, minimum runtime, timer minutes
+  - Temperature numbers take their allowed range from the climate entity's own
+    setpoint limits, so the UI only offers values the unit can actually hold.
+    If your AC reports `16-30`, that is the range offered; a different unit with
+    a different range is picked up automatically.
 - **Selects**: HVAC modes, fan modes, swing modes, light behavior per condition
 - **Sensors**: Status, current readings, timer function
 

@@ -215,9 +215,6 @@ class ClimateReactController:
         # Listeners notified when the enabled state changes (for UI refresh,
         # e.g. when manual override detection or timer expiry disables automation).
         self._enabled_listeners: list[Callable[[], None]] = []
-        # Listeners notified when config options change (for entity UI refresh,
-        # e.g. fan/swing selects disabling when the mode select is set to off).
-        self._config_listeners: list[Callable[[], None]] = []
 
     def _debug(self, msg: str, *args: Any, **kwargs: Any) -> None:
         """Centralized debug logging helper for controller messages.
@@ -566,24 +563,6 @@ class ClimateReactController:
                 listener()
             except Exception as exc:  # noqa: BLE001
                 _LOGGER.warning("Error notifying enabled listener: %s", exc)
-
-    def add_config_listener(self, callback: Callable[[], None]) -> Callable[[], None]:
-        """Register a callback to be notified when config options change."""
-        self._config_listeners.append(callback)
-
-        def _remove() -> None:
-            if callback in self._config_listeners:
-                self._config_listeners.remove(callback)
-
-        return _remove
-
-    def _notify_config_listeners(self) -> None:
-        """Notify config listeners of an update."""
-        for listener in list(self._config_listeners):
-            try:
-                listener()
-            except Exception as exc:  # noqa: BLE001
-                _LOGGER.warning("Error notifying config listener: %s", exc)
 
     def _can_change_mode(self) -> bool:
         """Check if minimum run time has elapsed since last mode change.
@@ -1111,15 +1090,6 @@ class ClimateReactController:
         # against the current config — so this re-reads the new value and acts on
         # it if the unit is not already doing what the new config asks for.
         await self._async_evaluate_state()
-        # Notify entities (e.g. fan/swing selects) so they can refresh their
-        # availability when the mode for their threshold side changes.
-        self._notify_config_listeners()
-
-    async def _async_sync_thresholds_to_climate(self, climate_state: State) -> None:
-        """No-op: room-temperature thresholds are independent of the climate
-        entity's setpoint range (the min_temp/max_temp attributes), so we no
-        longer clamp or persist them here. Kept as a hook for future use."""
-        return
 
     async def _async_temperature_changed(self, event: Event[EventStateChangedData]) -> None:
         """Handle temperature sensor state change.
