@@ -196,7 +196,7 @@ class ClimateReactConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         }
 
         data_schema = vol.Schema(schema_dict)
-        return self.async_show_form(step_id="user", data_schema=data_schema, errors=errors)
+        return self.async_show_form(step_id="user", data_schema=data_schema, errors=errors)  # type: ignore[arg-type]
 
     async def async_step_sensors(self, user_input: dict[str, Any] | None = None) -> Any:
         """Handle sensor selection step based on first-step choices."""
@@ -295,7 +295,7 @@ class ClimateReactConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             selector.EntitySelectorConfig(domain=["light", "switch", "select"])
         )
 
-        return self.async_show_form(step_id="sensors", data_schema=vol.Schema(schema_dict), errors=errors)
+        return self.async_show_form(step_id="sensors", data_schema=vol.Schema(schema_dict), errors=errors)  # type: ignore[arg-type]
 
     async def async_step_light_options(self, user_input: dict[str, Any] | None = None) -> Any:
         """Handle light select entity options step."""
@@ -369,7 +369,7 @@ class ClimateReactConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             ): selector.TextSelector(),
         }
 
-        return self.async_show_form(step_id="light_options", data_schema=vol.Schema(schema_dict), errors=errors)
+        return self.async_show_form(step_id="light_options", data_schema=vol.Schema(schema_dict), errors=errors)  # type: ignore[arg-type]
 
     async def _async_create_entry_with_defaults(self, step1_data: UserStepData) -> ConfigFlowResult:
         """Create entry with default values when no optional features are enabled."""
@@ -471,7 +471,7 @@ class ClimateReactOptionsFlow(config_entries.OptionsFlow):
         }
 
         options_schema = vol.Schema(schema_dict)
-        return self.async_show_form(step_id="init", data_schema=options_schema, errors=errors)
+        return self.async_show_form(step_id="init", data_schema=options_schema, errors=errors)  # type: ignore[arg-type]
 
     async def async_step_sensors(self, user_input: dict[str, Any] | None = None) -> Any:
         """Second options step - sensors/entities based on toggles."""
@@ -548,4 +548,4 @@ class ClimateReactOptionsFlow(config_entries.OptionsFlow):
             schema_dict[vol.Optional(CONF_LIGHT_SELECT_ON_OPTION, default=current_on)] = selector.TextSelector()
             schema_dict[vol.Optional(CONF_LIGHT_SELECT_OFF_OPTION, default=current_off)] = selector.TextSelector()
 
-        return self.async_show_form(step_id="sensors", data_schema=vol.Schema(schema_dict), errors=errors)
+        return self.async_show_form(step_id="sensors", data_schema=vol.Schema(schema_dict), errors=errors)  # type: ignore[arg-type]
